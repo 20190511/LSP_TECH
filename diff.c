@@ -13,6 +13,7 @@ analysis 를 바탕으로 diff출력하는 함수 -> diffs.
 
 #define STRMAX  512
 void example1 ();
+void example2 ();
 void string_LCS(char a[][STRMAX], char b[][STRMAX], int sizex, int sizey);
 char* analysis (char **item, int sizex, int sizey);
 void diffs (char a[][STRMAX], char b[][STRMAX], char* rule);
@@ -264,10 +265,18 @@ void string_LCS(char a[][STRMAX], char b[][STRMAX], int sizex, int sizey)
     printf("%s length is %ld\n", string_rule, strlen(string_rule));
     diffs(a,b,string_rule);
 
+    /* 동적 할당 해제.*/
     for (int i = 0 ; i < sizex+1 ; i++)
+    {
         free(dp_list[i]);
-    free(dp_list);
-}
+        free(char_list[i]);
+    }
+    free(dp_list);    
+    free(char_list);  
+
+     // 해당 변수 다 사용했으므로 할당해제
+    free(string_rule);   
+}   
 
 
 void example1 ()
@@ -329,59 +338,25 @@ void example1 ()
     };
     string_LCS(a,b,24,25);
 }
-/**
-This part of the
-document has stayed the
-same from version to
-version. It shouldn't
-be shown if it doesn't
-change. Otherwise, that
-would not be helping to
-compress the size of the
-changes
-
-This paragraph contains
-text that is outdated
-It will be deleted in the
-near future.
-
-It is important to spell
-check this dokument. On
-the other hand, a
-nisspelled word isn't
-the end of the world.
-Nothing in the rest of
-this paragraph needs to
-be changed. Things can
-be added after it.
 
 
-------
-This is an important
-notice! It should be
-located at this document!
-This part of the
-document has stayed the
-same from version to
-version.
-It shouldn't
-be shown if it doesn't
-change. Otherwise, that
-would not be helping to
-compress anything
+void example2 ()
+{
+    char a[7][STRMAX]={
+        "MAX",
+        "tain",
+        "CAT",
+        "",
+        "",
+        "SENTIME",
+        "DRUDI",
+    };
 
-It is important to spell
-check this document. On
-the other hand, a
-misspelled word isn't
-the end of the world
-Nothing in the rest of
-this paragraph needs to
-be changed.
-
-This paragraph contains
-important additions
-this document
-
-
-*/
+    char b[4][STRMAX] = {
+        "CAT",
+        "",
+        "",
+        "DRUDI",
+    };
+    string_LCS(a,b,7,4);
+}
