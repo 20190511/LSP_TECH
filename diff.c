@@ -1,6 +1,10 @@
 /*
 DIFF 함수는 결국 줄단위 문자열 LCS 로 생각되어질 수 있다.
 LCS는 전형적인 2차원 DP 테이블로 한 번 구현해보자
+
+LCS 를 구하는 과정 -> string_LCS
+LCS 에서 나온 dp table 분석하는 과정 -> analysis
+analysis 를 바탕으로 diff출력하는 함수 -> diffs.
 */
 
 #include <stdio.h>
@@ -22,6 +26,10 @@ int main(void)
 
 
 /**
+ *  diffs (a,b, 경로추적된 dp)
+ *  : 해당 경로를 바탕으로 a,b diff를 수행한다.
+ *  (string_LCS 안의 analysis()에서 얻어진 dp_rule 이용.)
+ * 
  *  s가 나올떄까지 rule을 선형적으로 진행시킨다 
  *  다음의 규칙성을 따른다.
  * 
@@ -87,7 +95,7 @@ void diffs (char a[][STRMAX], char b[][STRMAX], char* rule)
             {
                 if (rule[i] == 'a')
                 {
-                    printf("%da%s :\n", a_line[0]+1, b_line);
+                    printf("%da%s \n", idx_a[0], b_line);
                     for(int o = idx_b[0] ; o < idx_b[1] ; o++)
                     {
                         printf("> %s\n", b[o]);
@@ -97,7 +105,7 @@ void diffs (char a[][STRMAX], char b[][STRMAX], char* rule)
 
                 if (rule[i] == 'd')
                 {
-                    printf("%sd%d :\n", a_line, idx_b[0]+1);
+                    printf("%sd%d \n", a_line, idx_b[0]+1);
                     for(int o = idx_a[0] ; o < idx_a[1] ; o++)
                     {
                         printf("< %s\n", a[o]);
@@ -107,7 +115,7 @@ void diffs (char a[][STRMAX], char b[][STRMAX], char* rule)
             }
             else
             {
-                printf("%sc%s :\n", a_line, b_line);
+                printf("%sc%s \n", a_line, b_line);
                 for(int o = idx_a[0] ; o < idx_a[1] ; o++)
                 {
                     printf("< %s\n", a[o]);
@@ -128,6 +136,10 @@ void diffs (char a[][STRMAX], char b[][STRMAX], char* rule)
 }
 
 
+/** analysis (char_dp, sizex, sizey) --> 경로추적된 문자열 return
+ *  LCS DP 결과를 뒤에서부터 역추적하여 경로 추적.
+ *  
+*/
 char* analysis (char **item, int sizex, int sizey)
 {
 
