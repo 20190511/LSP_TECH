@@ -70,6 +70,7 @@ int kmp (char* origin, char* target)
  *  ptr = 일치문자열 + 찾을 문자열길이 해서 뒷부분 복사
  *  원본 -> 바꿀 문자열 바꾸기
  *  붙여넣기
+ *  주의할 점은 : 할당된 문자열이 오기 때문에 사용 후 free를 해줄 것
 */
 char* replace (char* original, char* rep_before, char* rep_after, int cnt)
 {
