@@ -58,6 +58,10 @@ int kmp (char* origin, char* target)
 
 }
 /** 
+ *  문자열 교체 함수: 마지막에 cnt에 몇 개까지 교체할 것인지 선택할 수 있음.
+ *  ★ 사용법 :  strcpy(path, replace(path, "A", "BBB"));
+ *        or    char* ptr = replace(path, "A", "BBB");
+ *
  *  original 문자열의 rep_before 을 rep_after를 cnt만큼 바꿔줌
  *  cnt == 0 이면 모든 문자열을 교체
  *
