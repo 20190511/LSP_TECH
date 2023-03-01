@@ -46,6 +46,7 @@ typedef struct File {
 typedef struct File_Header
 {
     File *root;
+    char filename [TREECMPCNT][MAXNAMLENS];          //파일명들을 저장하는 구조체 : 최종 파일 명등을 저장할 때 사용.
     int depth;
 }File_Header;
 
@@ -97,6 +98,11 @@ int main(int argc, char* argv[])
     }
     else
     {
+        if (argc > 6)
+        {
+            fprintf(stderr, "Your unit counts are %d, Can Print Maxmum %d units\n",argc-1, TREECMPCNT);
+            exit(1);
+        }
         File_Header** ex = compare_tree(argc,argv);
         print_tree(ex[0],0, 1);
         for (int dels = 0 ; dels < argc-1 ; dels++)
@@ -141,6 +147,8 @@ File_Header* fileheader()
     newfileheader->root = file();
     newfileheader->root->name[0] = '/';
     newfileheader->root->path[0] = '/';
+    for (int idx = 0 ; idx < TREECMPCNT ; idx++)
+        memset(newfileheader->filename[idx], '\0', MAXNAMLENS);
     return newfileheader;
 }
 
@@ -161,6 +169,8 @@ File_Header* fileheaders (char* paths)
 {
     int dir_cnt = 1;
     char path[MAXPATHLEN];
+    char file_name[MAXNAMLENS];
+
     strcpy(path, paths);                            //복사문제 해결. (path가 할당된게 아니라 스트링 포인터를 박은 경우 일 수 있기 때문)
 
     if (strstr(paths, "/") == NULL)                 // 상대경로로 받은 경우 출력. 
@@ -190,18 +200,27 @@ File_Header* fileheaders (char* paths)
     File_Header* newheader = fileheader();
 
     File *orignal = newheader->root;
+
+    /* 원본 파일 명 추출.*/
+    char* only_file = strrchr(path, (int)'/');
+    strcpy(file_name, only_file+1);
+    strcpy(newheader->filename[0], file_name);
+    //printf("file name is %s\n", file_name);
     if (strcmp(path, "/")==0)
+    {
+        strcpy(newheader->filename[0], "/");
         return newheader;
+    }
     else
     {   
         struct stat statbuf;
+        File *parent;
         char path_name [MAXPATHLEN];
         char *token = strtok(path, "/");
         strcpy(path_name, "/");
         int level = 1;
         while (token != NULL)
         {  
-
             strcat(path_name, token);
             if(stat(path_name,&statbuf) < 0)
             {
@@ -210,6 +229,12 @@ File_Header* fileheaders (char* paths)
             }
             if (S_ISREG(statbuf.st_mode))               //만약에 (일반)파일이면 그냥 넘기기 -> 디렉토리파일이면 탐색
             {
+                //아래 4줄 : 만약 regular파일이 경로 마지막에 온다면 부모 노드의 child_dir 을 자신만 있도록 설정.
+                parent->child_dir = (struct dirent**)malloc(sizeof(struct dirent*));
+                parent->child_dir[0] = (struct dirent*)malloc(sizeof(struct dirent));
+                strcpy(parent->child_dir[0]->d_name, file_name);
+                parent->count_list = 1;                 // 부모노드 자식리스트 1개로 설정
+
                 token = strtok(NULL, "/");
                 continue;
             }
@@ -223,6 +248,7 @@ File_Header* fileheaders (char* paths)
             token = strtok(NULL, "/");
             strcat(path_name, "/");
             level++;
+            parent = newFile;                           // 부모 기록.
         }
         newheader->root = orignal;
         newheader->depth = level;                       //총 디렉토리 깊이 저장.
@@ -262,13 +288,18 @@ void scandirs (File_Header* this)
     for (int i = 0 ; i < this->depth ; i++)
     {
         struct dirent** dir;
+        struct stat statbuf;
         int dir_cnt = 0;
         if (access(this->root->path, R_OK) != 0)        //읽어지는지 판단.
         {
             fprintf(stderr, "Read Error! : %s\n", this->root->name);
             exit(1);
         }
-        
+
+        // 신규 추가 : /home/junhyeong/go2/KMP.c 의 경우 /home/junhyeong/go2 의 go2부분이 이미 할당되어있음 (count_list==1)
+        if (this->root->next == NULL && this->root->count_list == 1)
+            break;
+
         if ((dir_cnt = scandir(this->root->path, &dir, NULL, alphasort)) == -1)
         {
             fprintf(stderr, "scandir error! : %s\n", strerror(errno));
@@ -497,27 +528,29 @@ File_Header** compare_tree (int argc, char* argv[])
     File* original = nodes[0]->root;
     for (int idx = 1 ; idx < argc-1 ; idx++)
     {
+        int same_path_check = 0;                    //같은 경로인지 체크해주는 변수 -> 같은 경로이면 아래 depth for문이 아무것도 안하고 탈출함.
+        strcpy(nodes[0]->filename[idx], nodes[idx]->filename[0]);
         File* original2 = nodes[idx]->root;
         int depth_cnt = nodes[idx]->depth;
-        //int depth_cnt = nodes[idx]->depth >= nodes[0]->depth ? nodes[idx]->depth : nodes[0]->depth; // 긴 깊이 경로 기준으로 탐색.
-        int check_point = 0;
+        int check_point = 0;                    //아래 (nodes[0]->root->next2[idx_j] == NULL) 가 참이면 변경. -> check==True ? break를 해주기위함.
         for (int depth = 0 ; depth < depth_cnt-1 ; depth++)
         {
             int idx_j;
             // 기준 File_Header next2[] 중 하나도 안 똑같은지 판단해야함
             for (idx_j = 0 ; idx_j <= idx ; idx_j++)
             {
-                if (nodes[0]->root->next2[idx_j] == NULL)                   //경로가 같은 파일이 하나도 없는 것이므로. 연결 + root depth 길이 조정. (긴 녀석으로 연결)
+                if (nodes[0]->root->next2[idx_j] == NULL)                   // 경로가 같은 파일이 하나도 없는 것이므로. 연결 + root depth 길이 조정. (긴 녀석으로 연결)
                 {
                     nodes[0]->root->next = nodes[idx]->root->next;          // 호환성을 위해 next, next2 모두 연결
                     nodes[0]->root->next2[idx_j] = nodes[idx]->root->next;
                     nodes[0]->root = original;
-                    nodes[0]->depth = nodes[idx]->depth;                  // root depth 길이 조정. (긴 녀석으로 연결)
+                    nodes[0]->depth = nodes[idx]->depth;                    // root depth 길이 조정. (긴 녀석으로 연결)
                     check_point = 1;
+                    same_path_check = 1;                                    // 같은 경로 아니므로 1으로 변경.
                     break;
                 }
 
-                if (strcmp(nodes[idx]->root->next->path, nodes[0]->root->next2[idx_j]->path) == 0)       //경로가 같으면 노드 이동. (이동하면서 삭제도 가능..)
+                if (strcmp(nodes[idx]->root->next->path, nodes[0]->root->next2[idx_j]->path) == 0)       // 경로가 같으면 노드 이동. (이동하면서 삭제도 가능..)
                 {
                     break;
                 }
@@ -533,9 +566,10 @@ File_Header** compare_tree (int argc, char* argv[])
                 {
                     nodes[0]->root->next2[idx_j] = nodes[idx]->root;
                     nodes[0]->root = original;
+                    same_path_check = 1;                                //같은 경로 아니므로 1으로 변경
                     break;
                 }
-                else
+                else                                                    // 같은 경로 내에 존재하는 경우.
                 {   
                     File* del = nodes[idx]->root;                       //중복되는 files는 삭제.
                     nodes[0]->root = nodes[0]->root->next2[idx_j];
@@ -544,7 +578,32 @@ File_Header** compare_tree (int argc, char* argv[])
                 }
             }
         }
+
+
+        // 사실 same_path_check 없어도 같은 경로면 들어오지만, 확장성을 위해 사용
+        if (same_path_check == 0)
+        {
+            int ccheck = 1;
+            for (int x = 0 ; x < nodes[0]->root->count_list ; x++)
+            {
+                if (strcmp(nodes[0]->root->child_dir[x]->d_name, nodes[0]->filename[idx])==0)
+                    ccheck = 0;   
+            }
+
+            if(ccheck)
+            {
+                File *tmp = nodes[0]->root;
+                int cur_child_cnt = tmp->count_list;
+                tmp->child_dir = (struct dirent**)realloc(tmp->child_dir, sizeof(cur_child_cnt)+1);
+                tmp->child_dir[cur_child_cnt] = (struct dirent*)malloc(sizeof(struct dirent));
+                strcpy(tmp->child_dir[cur_child_cnt]->d_name, nodes[0]->filename[idx]);
+                tmp->count_list++;
+            }
+        }
+        nodes[0]->root = original;
     }
+
+
     nodes[0]->root = original;
     // 디버그 돌리니까 최적화 오류가 발생하는 듯 함. ex> 함수 내에서 free를 해줘버리니까 메모리 오류가 발생함. (확인해보니 정설)
     /** 중요한 점 : File_Header 은 할당된 값이 없으므로 그냥 free(File_Header)를 해주면된다. 
