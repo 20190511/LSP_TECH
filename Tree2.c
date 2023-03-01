@@ -533,6 +533,11 @@ File_Header** compare_tree (int argc, char* argv[])
         File* original2 = nodes[idx]->root;
         int depth_cnt = nodes[idx]->depth;
         int check_point = 0;                    //아래 (nodes[0]->root->next2[idx_j] == NULL) 가 참이면 변경. -> check==True ? break를 해주기위함.
+
+        // 추가 : ./Tree /home/junhyeong/go2 /home/junhyeong 와 같이 nodes[idx] 가 부분원소인 경우는 그냥 pass할 수 있도록 한다.
+        if (strstr(argv[1], argv[idx+1]) != NULL)
+            continue;
+
         for (int depth = 0 ; depth < depth_cnt-1 ; depth++)
         {
             int idx_j;
@@ -543,10 +548,34 @@ File_Header** compare_tree (int argc, char* argv[])
                 {
                     nodes[0]->root->next = nodes[idx]->root->next;          // 호환성을 위해 next, next2 모두 연결
                     nodes[0]->root->next2[idx_j] = nodes[idx]->root->next;
-                    nodes[0]->root = original;
                     nodes[0]->depth = nodes[idx]->depth;                    // root depth 길이 조정. (긴 녀석으로 연결)
                     check_point = 1;
                     same_path_check = 1;                                    // 같은 경로 아니므로 1으로 변경.
+
+
+                    File *tmp = nodes[0]->root;
+                    //만약에 해당 nodes[0] 가 디렉토리면 이미 dirent를 가지고 있을 수 있어서 제작.
+                    int dir_check = 1;
+                    for (int dir_idx = 0 ; dir_idx < tmp->count_list ; dir_idx++)
+                    {
+                        if(strcmp(tmp->child_dir[dir_idx]->d_name, nodes[idx]->root->next->name) == 0)
+                        {
+                            nodes[0]->root = original;
+                            dir_check = 0;
+                            break;
+                        }
+                    }
+                    if (dir_check)
+                    {
+                        // 디버그 결과 nodes[0] 가 nodes[idx]보다 더 짧은 경우 dirent가 추가되지 않아 print 이슈가 있어 해당 dirent를 추가해준다.
+                        int cur_child_cnt = tmp->count_list;
+                        tmp->child_dir = (struct dirent**)realloc(tmp->child_dir, sizeof(cur_child_cnt)+1);
+                        tmp->child_dir[cur_child_cnt] = (struct dirent*)malloc(sizeof(struct dirent));
+                        strcpy(tmp->child_dir[cur_child_cnt]->d_name, nodes[idx]->root->next->name);
+                        tmp->count_list++;
+
+                        nodes[0]->root = original;
+                    }
                     break;
                 }
 
