@@ -581,6 +581,7 @@ File_Header** compare_tree (int argc, char* argv[])
 
 
         // 사실 same_path_check 없어도 같은 경로면 들어오지만, 확장성을 위해 사용
+        // 아래 함수는 nodes[0] 와 node[idx] 가 같은 디렉토리 내에 파일이 존재할 때 dirent가 같은 것이 있는지 확인한 후 없으면 dirent 추가하는 함수.
         if (same_path_check == 0)
         {
             int ccheck = 1;
