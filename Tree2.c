@@ -1,11 +1,4 @@
 /**
- 1 >>> print2 에서 for 문 조건 변경해주기위해서
-       compare() 에서 원본node[0]보다 크면 해당 
-       node[idx]->depth로교체
-
- 2 >>> free 함수 제작해서 지워줄것
-
- * Tree 하위 트리들도 출력가능하게 해줌.
  * 일단 프린트 폴더 목록들을 다 저장을 해두고
  * 
  *  그리고 하위 인덱스 파일에 싹 출력
@@ -72,8 +65,11 @@ int scandir(const char *dirp, struct dirent *** namelist,
 /** 문자열 교체 함수.*/
 char* replace (char* original, char* rep_before, char* rep_after, int cnt);
 int kmp (char* origin, char* target);
-File_Header* compare_tree (int argc, char* argv[]);
 
+/** 트리 비교함수.*/
+File_Header* compare_tree (int argc, char* argv[]);
+void free_file (File** del);
+void free_fileheader(File_Header** node);
 /** 트리 2개 비교*/
 
 int main(int argc, char* argv[])
@@ -488,10 +484,8 @@ char* replace (char* original, char* rep_before, char* rep_after, int cnt)
 
 File_Header* compare_tree (int argc, char* argv[])
 {
-    File_Header* nodes[argc-1];
-    int* check_bools = (int*)calloc(argc-1, sizeof(int));
-    check_bools[0] = 1;     //
-
+    File_Header** nodes = (File_Header**)malloc(sizeof(File_Header*) * (argc-1));       //nodes 할당값.
+    
     for (int ag = 1 ; ag < argc ; ag++)
     {
         nodes[ag-1] = fileheaders(argv[ag]);        //각각의 파일 헤더들을 생성. 그 중 가장 처음에 생성된 idx가 기준.
@@ -505,16 +499,19 @@ File_Header* compare_tree (int argc, char* argv[])
         int depth_cnt = nodes[idx]->depth;
         //int depth_cnt = nodes[idx]->depth >= nodes[0]->depth ? nodes[idx]->depth : nodes[0]->depth; // 긴 깊이 경로 기준으로 탐색.
         int check_point = 0;
+        printf("%s\n", nodes[0]->root->path);
         for (int depth = 0 ; depth < depth_cnt-1 ; depth++)
         {
             int idx_j;
             // 기준 File_Header next2[] 중 하나도 안 똑같은지 판단해야함
             for (idx_j = 0 ; idx_j <= idx ; idx_j++)
             {
-                if (nodes[0]->root->next2[idx_j] == NULL)       //경로가 같은 파일이 하나도 없는 것이므로. 연결
+                if (nodes[0]->root->next2[idx_j] == NULL)                   //경로가 같은 파일이 하나도 없는 것이므로. 연결 + root depth 길이 조정. (긴 녀석으로 연결)
                 {
+                    nodes[0]->root->next = nodes[idx]->root->next;          // 호환성을 위해 next, next2 모두 연결
                     nodes[0]->root->next2[idx_j] = nodes[idx]->root->next;
                     nodes[0]->root = original;
+                    nodes[0]->depth = nodes[idx]->depth;                  // root depth 길이 조정. (긴 녀석으로 연결)
                     check_point = 1;
                     break;
                 }
@@ -538,18 +535,51 @@ File_Header* compare_tree (int argc, char* argv[])
                     break;
                 }
                 else
-                {   File* del = nodes[idx]->root;                       //중복되는 files는 삭제.
+                {   
+                    File* del = nodes[idx]->root;                       //중복되는 files는 삭제.
                     nodes[0]->root = nodes[0]->root->next2[idx_j];
                     nodes[idx]->root = nodes[idx]->root->next;
-                    free(del);                                           //중복되는 files는 삭제.
+                    free_file(&del);                                           //중복되는 files는 삭제.
                 }
             }
         }
     }
     nodes[0]->root = original;
+    // 디버그 돌리니까 최적화 오류가 발생하는 듯 함. ex> 함수 내에서 free를 해줘버리니까 메모리 오류가 발생함.
+    /** 정리해보니까 위에 File_Header를 할당해주지 않고 free를 해버려서 발생된 문제로 보임.*/
     for (int dels = 1 ; dels < argc - 1 ; dels++)                        // 기준 nodes 제외하고 모두 삭제
-        free(nodes[dels]);
+        free_fileheader(&nodes[dels]);
+
     return nodes[0];
+}
+
+
+/** 
+ * : File* 구조체 모든 요소들(dirent** 포함) 을 할당해제 해주는 함수.
+ * 
+ *  ex>     free_File(&해당 File);
+ * 
+ */
+void free_file (File** del)
+{
+    for (int i = 0 ; i <(*del)->count_list ; i++)
+        free((*del)->child_dir[i]);
+    free((*del)->child_dir);
+    (*del)->next = NULL;
+    free((*del));
+}
+
+
+/** 
+ * : File_Header* 구조체 모든 요소들 을 할당해제 해주는 함수.
+ * 
+ *  ex>     free_Fileheader(&해당 File_Header);
+ * 
+ */
+void free_fileheader(File_Header** node)
+{
+    (*node)->root = NULL;
+    free((*node));
 }
 
 /**
