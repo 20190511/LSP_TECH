@@ -67,9 +67,8 @@ char* replace (char* original, char* rep_before, char* rep_after, int cnt);
 int kmp (char* origin, char* target);
 
 /** 트리 비교함수.*/
-File_Header* compare_tree (int argc, char* argv[]);
+File_Header** compare_tree (int argc, char* argv[]);
 void free_file (File** del);
-void free_fileheader(File_Header** node);
 /** 트리 2개 비교*/
 
 int main(int argc, char* argv[])
@@ -98,8 +97,11 @@ int main(int argc, char* argv[])
     }
     else
     {
-        File_Header* ex = compare_tree(argc,argv);
-        print_tree(ex,0, 1);
+        File_Header** ex = compare_tree(argc,argv);
+        print_tree(ex[0],0, 1);
+        for (int dels = 0 ; dels < argc-1 ; dels++)
+            free(ex[dels]);
+
     }
     return 0;
 }
@@ -482,7 +484,7 @@ char* replace (char* original, char* rep_before, char* rep_after, int cnt)
 
 
 
-File_Header* compare_tree (int argc, char* argv[])
+File_Header** compare_tree (int argc, char* argv[])
 {
     File_Header** nodes = (File_Header**)malloc(sizeof(File_Header*) * (argc-1));       //nodes 할당값.
     
@@ -491,7 +493,7 @@ File_Header* compare_tree (int argc, char* argv[])
         nodes[ag-1] = fileheaders(argv[ag]);        //각각의 파일 헤더들을 생성. 그 중 가장 처음에 생성된 idx가 기준.
         scandirs(nodes[ag-1]);
     }
-
+    
     File* original = nodes[0]->root;
     for (int idx = 1 ; idx < argc-1 ; idx++)
     {
@@ -499,7 +501,6 @@ File_Header* compare_tree (int argc, char* argv[])
         int depth_cnt = nodes[idx]->depth;
         //int depth_cnt = nodes[idx]->depth >= nodes[0]->depth ? nodes[idx]->depth : nodes[0]->depth; // 긴 깊이 경로 기준으로 탐색.
         int check_point = 0;
-        printf("%s\n", nodes[0]->root->path);
         for (int depth = 0 ; depth < depth_cnt-1 ; depth++)
         {
             int idx_j;
@@ -545,12 +546,12 @@ File_Header* compare_tree (int argc, char* argv[])
         }
     }
     nodes[0]->root = original;
-    // 디버그 돌리니까 최적화 오류가 발생하는 듯 함. ex> 함수 내에서 free를 해줘버리니까 메모리 오류가 발생함.
-    /** 정리해보니까 위에 File_Header를 할당해주지 않고 free를 해버려서 발생된 문제로 보임.*/
+    // 디버그 돌리니까 최적화 오류가 발생하는 듯 함. ex> 함수 내에서 free를 해줘버리니까 메모리 오류가 발생함. (확인해보니 정설)
+    /** 중요한 점 : File_Header 은 할당된 값이 없으므로 그냥 free(File_Header)를 해주면된다. 
     for (int dels = 1 ; dels < argc - 1 ; dels++)                        // 기준 nodes 제외하고 모두 삭제
         free_fileheader(&nodes[dels]);
-
-    return nodes[0];
+    */
+    return nodes;
 }
 
 
@@ -569,18 +570,6 @@ void free_file (File** del)
     free((*del));
 }
 
-
-/** 
- * : File_Header* 구조체 모든 요소들 을 할당해제 해주는 함수.
- * 
- *  ex>     free_Fileheader(&해당 File_Header);
- * 
- */
-void free_fileheader(File_Header** node)
-{
-    (*node)->root = NULL;
-    free((*node));
-}
 
 /**
  * 
