@@ -29,8 +29,8 @@ char CWD [MAXPATHLEN];                              // 현재 위치 getcwd() �
  * 2023-3-4 :구현
  *  - 해시 비교함수                                         (완료)
  *  - 파일 경로 A->B 파일 복사.                             (완료)
- *  - 디렉토리 전부탐사         -> flist
- *  - 파일명 같은 파일 경로찾아서 연결리스트 구현. ->rlist
+ *  - 디렉토리 전부탐사         -> flist                    (완료)
+ *  - 파일명 같은 파일 경로찾아서 연결리스트 구현. ->rlist    (필요X)
  *  - ls,vi 제작.
  * 
  * 
@@ -114,6 +114,8 @@ void flist_sizeup (Flist* flst);                                     // Flist �
 Flist* new_flist ();
 Rlist* new_Rlist();
 void print_node (Filenode* node);
+void print_rlist (Rlist* rlist);
+void print_flist (Flist* flist);
 void append (Flist* flist, char* file_name, int opt, int f_opt);     // flist 파일 array 대해 추가. option 0: orignal, 1: Backup
 void delete (Flist* flist, char* del_path, int f_opt);               // flist 해당 경로 찾아서 삭제 (미구현)
 void rappend (Rlist* rlist, char* file_name, int opt, int f_opt);    // Rlist 에 file_name 경로 데이터 단순 연결
@@ -128,9 +130,29 @@ int make_directory (char* dest);
 char* curr_time();
 
 
+// 파일 탐색 함수.
+Rlist* original_search(char* file_name, int f_opt, int all);           // 그냥 연결리스트 구현 (동작확인완료)
+Flist* backup_search(char* file_name, int f_opt, int all);             // 해시 체이닝 구현.
+int scandir(const char *dirp, struct dirent *** namelist,
+            int(*filter)(const struct dirent *),
+            int(*compar)(const struct dirent**, const struct dirent **));
+
+
 int main(void)
 {
+    /*
+    //잘되는거 확인완료
+    Rlist* original_sub_path = original_search("/home/junhyeong/file2.cpp", 0, 0);
+    printf("%s sub dir cnt is %d\n", original_sub_path->rear->file_name, original_sub_path->file_cnt);
+    print_rlist(original_sub_path);
+    */
+
+    Flist* flist_sub_path = backup_search("/home/junhyeong/backup/tt", 1, 1);
+    printf("%s sub dir cnt is %d+%d\n", flist_sub_path->dir_array[0]->file_name, flist_sub_path->file_cnt, flist_sub_path->dir_cnt);
+    print_flist (flist_sub_path);
+
     // 잘되는거 확인완료.
+    /*
 	Filenode* newfile = new_filenodes("diff.c_230227172302", 1,0);
 	Filenode* newfile2 = new_filenodes("diff.c_230227172319", 1,0);
 	Filenode* newfile4 = new_filenodes("a.c_230227172320", 1,0);
@@ -154,7 +176,7 @@ int main(void)
     rpopleft(newflist);
     rpopleft(newflist);
     rpopleft(newflist);
-    
+    */
     //동작 확인완료
     /*make_directory("/home/junhyeong/backup/test1/test2/test3.c");*/
 
@@ -184,10 +206,267 @@ int main(void)
 	exit(0);
 }
 
+
+
+void print_flist (Flist* flist)
+{
+    printf("================ Start Flist Print ===============\n");
+    printf("-----------------Backup Dictinary-----------------\n");
+    for (int i = 0 ; i < flist->dir_cnt ; i++)      //딕셔너리 출력
+    {
+        printf("%s\n", flist->dir_array[i]->path_name);
+    }
+    printf("-----------------Backup File    -----------------\n");
+    for (int i = 0 ; i < flist->file_cnt ; i++)     //파일 출력
+    {
+        if (flist->file_cnt_table[i] > 1)
+        {
+            Filenode* original = flist->file_array[i];
+            for (int x = 0 ; x < flist->file_cnt_table[i] ; x++)
+            {
+                printf("[%d] >> same file : %s\n",i+1, original->path_name);
+                original = original->next;
+            }
+        }
+        else
+        {
+            printf("[%d] %s\n",i+1, flist->file_array[i]->path_name);
+        }
+    }
+    printf("================ End Flist Print ===============\n");
+
+}
+
+void print_rlist (Rlist* rlist)
+{
+    Filenode* origin = rlist->rear;
+    for (int i = 0 ; i < rlist->file_cnt ; i++)
+    {
+        printf("%s\n",rlist->rear->path_name);
+        rlist->rear = rlist->rear->next;
+    }
+    rlist->rear = origin;
+}
+
+
+/**
+ *  original_search -> Orignal 폴더 경로 하위 폴더 및 해당 파일 리스트 반환
+ *  : 일반적인 경로에 있는 폴더 탐색함수.
+ *      
+ *  
+ *  all 0:해당 파일/디렉토리안 파일만. 1:하위 모든파일
+ */
+Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 연결리스트 구현
+{
+    Filenode* rootnode = new_filenodes(file_name, 0, f_opt);
+    Rlist* rlist = new_Rlist();
+    if (rootnode == NULL)
+    {
+        free(rootnode);
+        free(rlist);
+        return NULL;
+    }
+    
+    if (S_ISDIR (rootnode->file_stat.st_mode))
+    {
+        rappend(rlist, rootnode->path_name, 0, f_opt);
+        if (all)
+        {
+            Filenode* original = rlist->rear;
+            while(rlist->rear != NULL)
+            {
+                char path_name [MAXPATHLEN] = {0,};
+                strcpy(path_name, rlist->rear->path_name);
+                char *modify_ptr = path_name + strlen(path_name);                   //이름 수정할 포인터
+
+                char* orignal_ptr = modify_ptr;
+                if (S_ISDIR(rlist->rear->file_stat.st_mode))
+                {
+                    strcat(path_name, "/");
+                    modify_ptr++;
+                    orignal_ptr = modify_ptr;
+                    if (access(rootnode->path_name, R_OK) != 0)
+                    {
+                        fprintf(stderr, "Access Error :%s \n", rootnode->path_name);
+                        rlist->rear = rlist->rear->next;
+                        continue;
+                    }
+
+                    struct dirent** sub_dir;
+                    int file_cnt;
+                    if ((file_cnt=scandir(rlist->rear->path_name, &sub_dir, NULL, alphasort)) < 0)
+                    {
+                        printf("open dir error :%s \n", rootnode->path_name);
+                        rlist->rear = rlist->rear->next;
+                        continue;
+                    }
+
+                    for (int i = 0 ; i < file_cnt ; i++)
+                    {
+                        char sub_file_name[MAXFILELEN];
+                        strcpy(sub_file_name, sub_dir[i]->d_name);
+                        if (strcmp(sub_file_name, ".") == 0 || strcmp(sub_file_name, "..") == 0)
+                            continue;
+                        strcpy(modify_ptr, sub_file_name);
+                        rappend(rlist, path_name, 0, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
+                        free(sub_dir[i]);   
+                        modify_ptr = orignal_ptr;
+                    }
+                    free(sub_dir);
+                    rlist->rear = rlist->rear->next;                // rear이 디렉토리인 경우 (탐색하고 다음 노드로)
+                }
+                else
+                {
+                    rlist->rear = rlist->rear->next;                // rear이 디렉토리가 아닌 경우 (탐색하지 않고 다음 노드로)
+                }
+            }
+            rlist->rear = original; //원 노드로 복귀
+            return rlist;
+        }
+        else        //자기 하위 파일만 탐색하는 경우.
+        {
+            //디렉토리는 제외하고 REG 파일만 백업
+            rappend(rlist, rootnode->path_name, 0, f_opt);
+
+            char path_name [MAXPATHLEN] = {0,};
+            sprintf(path_name, "%s/", rootnode->path_name);                  //경로 저장.
+            char *modify_ptr = path_name + strlen(path_name);                   //이름 수정할 포인터
+            char* original_ptr = modify_ptr;
+            int file_cnt;
+            struct dirent** sub_dir;
+            if ((file_cnt=scandir(rlist->rear->path_name, &sub_dir, NULL, alphasort)) < 0)
+            {
+                printf("open dir error :%s \n", rootnode->path_name);
+                return NULL;
+            }
+
+            for (int i = 0 ; i < file_cnt ; i++)
+            {
+                char sub_file_name[MAXFILELEN];
+                strcpy(sub_file_name, sub_dir[i]->d_name);
+                if (strcmp(sub_file_name, ".") == 0 || strcmp(sub_file_name, "..") == 0)
+                    continue;
+                strcpy(modify_ptr, sub_file_name);
+                rappend(rlist, path_name, 0, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
+                free(sub_dir[i]);   
+                modify_ptr = original_ptr;
+            }
+            free(sub_dir);
+            
+            return rlist;
+        }
+    }
+    else
+    {
+        rappend(rlist, rootnode->path_name, 0, f_opt);
+        return rlist;
+    }
+
+}
+
+/**
+ *  backup_search -> backup 폴더 경로 하위 폴더 및 해당 파일 리스트 반환
+ * : all 0:해당 파일/디렉토리안 파일만. 1:하위 모든파일
+ */
+Flist* backup_search(char* file_name, int f_opt, int all)             // 해시 체이닝 구현.
+{
+    Filenode* rootnode = new_filenodes(file_name, 0, f_opt);
+    Flist* flist = new_flist();
+    if (rootnode == NULL)
+    {
+        free(rootnode);
+        free(flist);
+        return NULL;
+    }
+    
+    if (S_ISDIR (rootnode->file_stat.st_mode))
+    {
+        append(flist, rootnode->path_name, 1, f_opt);
+        if (all)
+        {
+            for (int dir_idx = 0 ; dir_idx < flist->dir_cnt ; dir_idx++)
+            {
+                char* dir_name = flist->dir_array[dir_idx]->path_name;
+                char tmp_name[MAXPATHLEN] = {0,};
+                sprintf(tmp_name, "%s/", dir_name);
+                char* modify_ptr = tmp_name + strlen(tmp_name);
+                char* original_ptr = modify_ptr;                //복구시키는 기능.
+
+                if (access(dir_name, R_OK) != 0)
+                    continue;
+                
+                struct dirent** sub_dir;
+                int dir_unit_cnt;
+                if ((dir_unit_cnt=scandir(dir_name, &sub_dir, NULL, alphasort)) < 0)
+                {
+                    printf("open dir error :%s \n", rootnode->path_name);
+                    return NULL;
+                }
+
+                for(int i = 0 ; i < dir_unit_cnt ; i++)
+                {
+                    char sub_file_name[MAXFILELEN];
+                    strcpy(sub_file_name, sub_dir[i]->d_name);
+                    if (strcmp(sub_file_name, ".") == 0 || strcmp(sub_file_name, "..") == 0)
+                        continue;
+                    strcpy(modify_ptr, sub_file_name);
+                    append(flist, tmp_name, 1, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
+                    free(sub_dir[i]);   
+                    modify_ptr = original_ptr;
+                }
+                free(sub_dir);
+            }
+            return flist;
+        }
+        else   // 디렉토리가 아니라 그냥 파일인경우.
+        {
+            char* dir_name = flist->dir_array[0]->path_name;
+            char tmp_name[MAXPATHLEN] = {0,};
+            sprintf(tmp_name, "%s/", dir_name);
+            char* modify_ptr = tmp_name + strlen(tmp_name);
+            char* original_ptr = modify_ptr;                //복구시키는 기능.
+
+            if (access(dir_name, R_OK) != 0)
+                return NULL;
+            struct dirent** sub_dir;
+            int dir_unit_cnt;
+            if ((dir_unit_cnt=scandir(dir_name, &sub_dir, NULL, alphasort)) < 0)
+            {
+                printf("open dir error :%s \n", rootnode->path_name);
+                return NULL;
+            }
+
+            for(int i = 0 ; i < dir_unit_cnt ; i++)
+            {
+                char sub_file_name[MAXFILELEN];
+                strcpy(sub_file_name, sub_dir[i]->d_name);
+                if (strcmp(sub_file_name, ".") == 0 || strcmp(sub_file_name, "..") == 0)
+                    continue;
+                strcpy(modify_ptr, sub_file_name);
+                append(flist, tmp_name, 1, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
+                free(sub_dir[i]);   
+                modify_ptr = original_ptr;
+            }
+            free(sub_dir);
+
+            return flist;
+        }
+    }
+    else
+    {
+        append(flist, rootnode->file_name, 1, f_opt);
+        return flist;
+    }
+
+}
+
+
+
+
 /** 
  *  : 파일 복사할 때 서브 디렉토리가 존재하는지 여부 체크
  *  존재하지 않으면 새로생성.
-*/
+ */
 int make_directory (char* dest)
 {
     char tmp_path [MAXPATHLEN] = {0,};
@@ -217,7 +496,7 @@ int make_directory (char* dest)
 /**
  *  현재 시간 _230227172231 생성
  *  ★ _ 가 안 붙여서 나오기 때문에 _붙여서 사용할것 
-*/
+ */
 char* curr_time()
 {
     time_t seconds = time(NULL);
@@ -287,7 +566,7 @@ int file_cpy (char* a_file, char* b_file)
  * node로 받는 파일복사함수 (A->B 복사)
  *      성공하면 1 실패하면 0
  * a_node 가 디렉토리라면 해당 경로에 디렉토리 생성.
-*/
+ */
 int node_file_cpy (Filenode* a_node)
 { 
     if (a_node == NULL)
@@ -319,7 +598,7 @@ int node_file_cpy (Filenode* a_node)
 /** 해시 비교함수
  *  같으면 1 , 다르면 0
  * 
-*/
+ */
 int hash_compare (Filenode* a_node, Filenode* b_node)
 {
     char* a_hash = a_node->hash;
@@ -504,6 +783,19 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         fprintf(stderr, "%s : stat error\n", newfile->path_name);
     }
 
+    if (!S_ISDIR(newfile->file_stat.st_mode) && !S_ISREG(newfile->file_stat.st_mode))        //만들고보니까 파이프파일 같은 함정카드다? 없애기
+    {
+        free(newfile);
+        return NULL;
+    }
+    
+    //파일용량 10메가바이트 제한
+    if (newfile->file_stat.st_size > 100000000)
+    {
+        printf("%s file size is %ld, pass\n", newfile->path_name, newfile->file_stat.st_size);
+        free(newfile);
+        return NULL;
+    }    
     FILE *fp_hash = fopen(newfile->path_name, "r");
     char* hash_ptr = do_hashing(fp_hash, f_opt);
     if (hash_ptr == NULL)
@@ -551,7 +843,7 @@ void append (Flist* flist, char* file_name, int opt, int f_opt)                 
     Filenode* newfile = new_filenodes(file_name, opt, f_opt);
     int dir_check = 0;
     if (newfile == NULL)
-            return;
+        return;
     if(S_ISDIR(newfile->file_stat.st_mode))
         dir_check = 1;
     if (S_ISDIR(newfile->file_stat.st_mode) && flist->dir_cnt == flist->max_dir_cnt)
@@ -588,7 +880,7 @@ void append (Flist* flist, char* file_name, int opt, int f_opt)                 
             int same = 0;
             for (int i = 0 ; i < flist->file_cnt ; i++)
             {
-                if (strcmp(flist->file_array[i]->file_name, newfile->file_name) == 0)
+                if (strcmp(flist->file_array[i]->inverse_path, newfile->inverse_path) == 0)
                 {
                     same = 1; //같은게 존재한다는건 노드가 있다는 뜻.
                     flist->file_rear_table[i]->next = newfile;          // 붙이기 전에 끝에 존재하던 노드에 연결
