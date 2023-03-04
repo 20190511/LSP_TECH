@@ -15,6 +15,7 @@
 //아래부터 추가된 것들.
 #include <time.h>
 #define BACKUP_PATH         "/home/junhyeong/backup"    //디버그용으로 백업폴더는 /home/junhyeong/backup 으로 설정     -> 잘돌아가면 root 권한으로 /home/backup 으로 변경.
+//#define BACKUP_PATH         "/home/backup"            //<- 되는거 확인
 #define ACTUAL_PATH         "/home/junhyeong"
 #define TIME_TYPE           20
 #define BUFSIZE	            1024*16
@@ -34,8 +35,15 @@ char CWD [MAXPATHLEN];                              // 현재 위치 getcwd() �
  *  - 파일명 같은 파일 경로찾아서 연결리스트 구현. ->rlist    (필요X)
  *  - ls,vi 제작.
  * 
- *  - add 할 때 필요한 original 경로 와 backup 파일 해시값 비교 함수 제작
- *  - add 옵션에 따른 비교 선택.
+ *  - add 할 때 필요한 original 경로 와 backup 파일 해시값 비교 함수 제작   (완료)
+ *  - add 옵션에 따른 비교 선택.                            (완료)
+ * 
+ * 
+ ** 2023-3-5 구현
+ *  - recover
+ *  - remove
+ *  - ls/vim 제작
+ * 
  * 
 */
 
@@ -137,7 +145,8 @@ Rlist* original_search(char* file_name, int f_opt, int all);           // 그냥
 Flist* backup_search(char* file_name, int f_opt, int all);             // 해시 체이닝(연결리스트) 구현. (동작확인완료 . 3.04)
 int scandir(const char *dirp, struct dirent *** namelist,
             int(*filter)(const struct dirent *),
-            int(*compar)(const struct dirent**, const struct dirent **));
+            int(*compar)(const struct dirent**, const struct dirent **));       // scandir, alphasort 명시
+int alphasort(const struct dirent **d1, const struct dirent **d2);
 
 
 // 1. add 계열함수
@@ -146,7 +155,7 @@ int ssu_add (char* file_name, int flag, int f_opt);
 
 int main(void)
 {
-    int check = ssu_add("/home/junhyeong/lect", 1, 0);
+    int check = ssu_add("/home/junhyeong/go2/diff.c", 0, 0);
     //잘되는거 확인완료
     /*
     Rlist* original_sub_path = original_search("/home/junhyeong", 1, 1);
@@ -609,11 +618,12 @@ int make_directory (char* dest)
                 {
                     printf("Making directory : %s Error !\n", tmp_path);
                 }
-                sleep(0.5);
             }
         }
     }
 }
+
+
 
 
 /**
@@ -695,6 +705,7 @@ int node_file_cpy (Filenode* a_node)
     if (a_node == NULL)
         return 0;
     
+    make_directory(a_node->inverse_path);               //파일 제작 전 우선 디렉토리 제작.
     if (S_ISDIR(a_node->file_stat.st_mode))
     {
         if (access(a_node->inverse_path, F_OK) != 0)
@@ -703,7 +714,6 @@ int node_file_cpy (Filenode* a_node)
             {
                 printf("Make Directory Error! : %s\n", a_node->inverse_path);
             }
-            sleep(0.5);
         }
         return 1;
     }
@@ -1090,7 +1100,6 @@ int cmd_add(char* backup_path, char* file_name)
             fprintf(stderr, "Make Directory Error\n");
             return -1;
         }
-        sleep(0.5);
     }
     add_backup(backup_path, file_name);
 }
