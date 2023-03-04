@@ -34,6 +34,8 @@ char CWD [MAXPATHLEN];                              // 현재 위치 getcwd() �
  *  - 파일명 같은 파일 경로찾아서 연결리스트 구현. ->rlist    (필요X)
  *  - ls,vi 제작.
  * 
+ *  - add 할 때 필요한 original 경로 와 backup 파일 해시값 비교 함수 제작
+ *  - add 옵션에 따른 비교 선택.
  * 
 */
 
@@ -130,18 +132,23 @@ int make_directory (char* dest);
 // 현재시간 _230227172231 (현재시간 생성 개체)
 char* curr_time();
 
-
 // 파일 탐색 함수.
-Rlist* original_search(char* file_name, int f_opt, int all);           // 그냥 연결리스트 구현 (동작확인완료)
-Flist* backup_search(char* file_name, int f_opt, int all);             // 해시 체이닝 구현.
+Rlist* original_search(char* file_name, int f_opt, int all);           // 그냥 연결리스트 구현 (동작확인완료 . 3.04)
+Flist* backup_search(char* file_name, int f_opt, int all);             // 해시 체이닝(연결리스트) 구현. (동작확인완료 . 3.04)
 int scandir(const char *dirp, struct dirent *** namelist,
             int(*filter)(const struct dirent *),
             int(*compar)(const struct dirent**, const struct dirent **));
 
 
+// 1. add 계열함수
+int ssu_add (char* file_name, int flag, int f_opt);
+
+
 int main(void)
 {
+    int check = ssu_add("/home/junhyeong/lect", 1, 0);
     //잘되는거 확인완료
+    /*
     Rlist* original_sub_path = original_search("/home/junhyeong", 1, 1);
     printf("%s sub dir cnt is %d\n", original_sub_path->rear->file_name, original_sub_path->file_cnt);
     print_rlist(original_sub_path);
@@ -150,7 +157,7 @@ int main(void)
     Flist* flist_sub_path = backup_search("/home/junhyeong/backup", 1, 1);
     printf("%s sub dir cnt is %d+%d\n", flist_sub_path->dir_array[0]->file_name, flist_sub_path->file_cnt, flist_sub_path->dir_cnt);
     print_flist (flist_sub_path);
-
+    */
     // 잘되는거 확인완료.
     /*
 	Filenode* newfile = new_filenodes("diff.c_230227172302", 1,0);
@@ -205,6 +212,121 @@ int main(void)
     */
 	exit(0);
 }
+
+int ssu_add (char* file_name, int flag, int f_opt)
+{
+    Filenode *tmp_node = new_filenodes(file_name, 0, f_opt);
+    if (tmp_node == NULL)
+    {
+        printf("Error!\n");
+        return 0;
+    }
+    char original_path[MAXPATHLEN] = {0,};
+    char backup_path[MAXPATHLEN] = {0,};
+
+    strcpy(original_path, tmp_node->path_name);
+    strcpy(backup_path, tmp_node->inverse_path);
+
+    if (flag)       //해당경로로 모두 탐색.
+    {
+        if (S_ISREG(tmp_node->file_stat.st_mode))
+        {
+            printf("미구현 ㅎㅎ\n");
+            return 1;
+        }
+        if (S_ISDIR(tmp_node->file_stat.st_mode))
+        {
+            char* token_ptr = strrchr(backup_path, '/');
+            *token_ptr = '\0';
+            Rlist* original_node = original_search(original_path, f_opt, 1);
+            Flist* backup_node = backup_search(backup_path, f_opt, 1);
+
+            Filenode* cpy_node = original_node->rear;
+            for (int file_cnt = 0 ; file_cnt < original_node->file_cnt ; file_cnt++)
+            {
+                if (!S_ISDIR(cpy_node->file_stat.st_mode))
+                {
+                    int check = 1;
+                    if (backup_node != NULL)
+                    {
+                        for (int cnt = 0 ; cnt < backup_node->file_cnt ; cnt++)
+                        {
+                            if (strcmp(backup_node->file_array[cnt]->file_name, cpy_node->file_name) == 0)
+                            {
+                                for (int i = 0 ; i < backup_node->file_cnt_table[cnt] ; i++)
+                                {
+                                    Filenode* node = backup_node->file_array[cnt];
+                                    if (strcmp(node->hash, cpy_node->hash) == 0)
+                                    {
+                                        check = 0;
+                                        printf("\"%s\" is already backuped\n", node->path_name);
+                                        break;
+                                    }
+                                    node = node->next;
+                                }
+                                if (!check)
+                                    break;
+                            }
+                        }
+                    }
+                    if (check)
+                    {
+                        printf("\"%s\" backuped\n", cpy_node->inverse_path);
+                        node_file_cpy(cpy_node);
+                    }
+                }
+                cpy_node = cpy_node->next;
+            }
+        }
+        return 0;
+
+    }
+    else
+    {
+        if (S_ISDIR(tmp_node->file_stat.st_mode))
+        {
+            printf("\"%s\" is a directory file\n", tmp_node->path_name);
+            return 0;
+        }
+        // 실제로 해보니 해당 경로에 있는 값들을 다 가져와서 비교해야됨
+        char* token_ptr = strrchr(backup_path, '/');
+        *token_ptr = '\0';
+        Rlist* original_node = original_search (original_path, f_opt, 0);
+        Flist* backup_node = backup_search (backup_path, f_opt, 0);
+
+        int check = 1;
+        if (backup_node != NULL)
+        {
+            for (int cnt = 0 ; cnt < backup_node->file_cnt ; cnt++)
+            {
+                if (strcmp(backup_node->file_array[cnt]->file_name, original_node->header->file_name) == 0)
+                {
+                    for (int i = 0 ; i < backup_node->file_cnt_table[cnt] ; i++)
+                    {
+                        Filenode* node = backup_node->file_array[cnt];
+                        if (strcmp(node->hash, original_node->header->hash) == 0)
+                        {
+                            check = 0;
+                            printf("\"%s\" is already backuped\n", node->path_name);
+                            break;
+                        }
+                        node = node->next;
+                    }
+                    if (!check)
+                        break;
+                }
+            }
+        }
+
+        if (check)      // 동일한 해시가 존재하기때문에 생성할 필요 없음.
+        {
+            printf("\"%s\" backuped\n", original_node->header->inverse_path);
+            node_file_cpy(original_node->header);
+        }
+    }
+    return 1;
+}
+
 
 
 
@@ -487,6 +609,7 @@ int make_directory (char* dest)
                 {
                     printf("Making directory : %s Error !\n", tmp_path);
                 }
+                sleep(0.5);
             }
         }
     }
@@ -545,7 +668,7 @@ int file_cpy (char* a_file, char* b_file)
     while((read_cnt =read(fd1, read_buf, BUFSIZE)) > 0)
     {
         int write_cnt = write(fd2, read_buf, read_cnt);
-        printf("%s\n", read_buf);
+        //printf("%s\n", read_buf);
         if (write_cnt != read_cnt)
         {
             printf("write_error :%s\n", b_file);
@@ -580,6 +703,7 @@ int node_file_cpy (Filenode* a_node)
             {
                 printf("Make Directory Error! : %s\n", a_node->inverse_path);
             }
+            sleep(0.5);
         }
         return 1;
     }
@@ -966,6 +1090,7 @@ int cmd_add(char* backup_path, char* file_name)
             fprintf(stderr, "Make Directory Error\n");
             return -1;
         }
+        sleep(0.5);
     }
     add_backup(backup_path, file_name);
 }
