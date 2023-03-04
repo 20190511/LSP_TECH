@@ -1,26 +1,40 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/stat.h>
-#include <stdio.h>
-#include <dirent.h>
 #include <sys/types.h>
+#include <dirent.h>
 #include <openssl/sha.h>            /*현재 home에 설치되어있음 */
 #include <openssl/md5.h>
 #include <string.h>
-#define MAXPATHLEN      4097
-#define MAXFILELEN      256
-#define MAXPROMPTLEN    1024
+#define MAXPATHLEN          4097
+#define MAXFILELEN          256
+#define MAXPROMPTLEN        1024
 
 //아래부터 추가된 것들.
 #include <time.h>
-#define BACKUP_PATH     "/home/junhyeong/backup"    //디버그용으로 백업폴더는 /home/junhyeong/backup 으로 설정     -> 잘돌아가면 root 권한으로 /home/backup 으로 변경.
-#define ACTUAL_PATH     "/home/"
-#define TIME_TYPE       20
-#define BUFSIZE	        1024*16
-#define HASH_LEN        41
-#define START_FLIST_IDX       40                    //일단 파일 IDX는 40개로 시작
+#define BACKUP_PATH         "/home/junhyeong/backup"    //디버그용으로 백업폴더는 /home/junhyeong/backup 으로 설정     -> 잘돌아가면 root 권한으로 /home/backup 으로 변경.
+#define ACTUAL_PATH         "/home/junhyeong"
+#define TIME_TYPE           20
+#define BUFSIZE	            1024*16
+#define HASH_LEN            41
+#define START_FLIST_IDX     40                    //일단 파일 IDX는 40개로 시작
 
 char CWD [MAXPATHLEN];                              // 현재 위치 getcwd() 사용.
+
+
+
+/**
+ * 2023-3-4 :구현
+ *  - 해시 비교함수                                         (완료)
+ *  - 파일 경로 A->B 파일 복사.                             (완료)
+ *  - 디렉토리 전부탐사         -> flist
+ *  - 파일명 같은 파일 경로찾아서 연결리스트 구현. ->rlist
+ *  - ls,vi 제작.
+ * 
+ * 
+*/
 
 
 // 해시형태의 링크드리스트를 생각해보았으나 print_tree 같은 계층도를 그릴 필요 없는 경우는 그냥 단순연결리스트로 구현
@@ -32,9 +46,9 @@ typedef struct filenode {
     char inverse_path [MAXPATHLEN];     // original파일이면 -> 백업파일 경로 저장 (ex) /home/junhyeong/diff.c -> 백업경로/diff.c
     char hash[HASH_LEN];                // <- 해시값 저장 (해시길이40:). (저장할 때 해시값저장.)
     struct stat file_stat;               // stat 저장 (바이트 크기 등에 사용.) -> st_size
+    char back_up_time [TIME_TYPE];      // 백업 타이밍 설정
     
     //나중에 설정할 값들.
-    char back_up_time [TIME_TYPE];      // 백업 타이밍 설정
     struct filenode* next;              // Reg 파일의 경우 연결리스트 사용
 }Filenode;
 
@@ -65,6 +79,21 @@ typedef struct flist{
 }Flist;
 
 
+/**
+ * : rlist : 단순 연결리스트 헤더
+ * 
+ *  :꼬리부분과 헤더부분 존재.
+ *  (꼬리부분 :rear (헤더)) + (헤더부분 : header(새로 추가될 때마다 갱신되는 부분))
+ * 생각해보니, flist에 rlist 구조체를 넣어서 만들었으면 되었음.. (아쉬운점)
+ * 
+*/
+typedef struct rlist{
+    Filenode* header;
+    Filenode* rear;
+    
+    int file_cnt;
+}Rlist;
+
 #define PRINT_ERR(_MSG) \
 {fprintf(stderr, "%S Error !\n", _MSG);}
 
@@ -75,30 +104,301 @@ int cmd_add();
 char* do_hashing(FILE *f, int opt);							//option 0 :md5, 1: sha1
 char* hash_to_string(unsigned char *md);
 
+// 해시 비교함수
+int hash_compare (Filenode* a_node, Filenode* b_node);
+
 // 구조체 초기화 함수들.
-Filenode* new_filenode ();                                // 기본 초기화
+Filenode* new_filenode ();                                           // 기본 초기화
 Filenode* new_filenodes (char* filename, int opt, int f_opt);        // 파일 초기화, option 0: original, 1: backup
+void flist_sizeup (Flist* flst);                                     // Flist 인덱스 사이즈업.
 Flist* new_flist ();
+Rlist* new_Rlist();
 void print_node (Filenode* node);
-void append (Flist* flist, char* file_name, int opt, int f_opt);                  // 파일 array 대해 추가. option 0: orignal, 1: Backup
-void delete (Flist* flist, char* del_path, int f_opt);
-void flist_sizeup (Flist* flst);                                //Flist 인덱스 사이즈업.
+void append (Flist* flist, char* file_name, int opt, int f_opt);     // flist 파일 array 대해 추가. option 0: orignal, 1: Backup
+void delete (Flist* flist, char* del_path, int f_opt);               // flist 해당 경로 찾아서 삭제 (미구현)
+void rappend (Rlist* rlist, char* file_name, int opt, int f_opt);    // Rlist 에 file_name 경로 데이터 단순 연결
+Filenode* rpopleft (Rlist* rlist);                                   // Rlist 큐 popleft
+
+// 파일 복사 함수
+int file_cpy (char* a_file, char* b_file);
+int node_file_cpy (Filenode* a_node);
+int make_directory (char* dest);
+
+// 현재시간 _230227172231 (현재시간 생성 개체)
+char* curr_time();
+
 
 int main(void)
 {
     // 잘되는거 확인완료.
 	Filenode* newfile = new_filenodes("diff.c_230227172302", 1,0);
-    Flist* newflist = new_flist();
-    append(newflist,"diff.c_230227172302",1,0);
-    append(newflist,"diff.c_230227172319",1,0);
-    append(newflist,"diff.c_230227172320",1,0);    
-    append(newflist,"a.c_230227172320",1,0);    
+	Filenode* newfile2 = new_filenodes("diff.c_230227172319", 1,0);
+	Filenode* newfile4 = new_filenodes("a.c_230227172320", 1,0);
+	Filenode* newfile3 = new_filenodes("diff.c", 0,0);
+	Filenode* newfile5 = new_filenodes("/home/junhyeong/file2.cpp", 0,0);
+	Filenode* newfile6 = new_filenodes("tt/a.c_230227172325", 1,0);
+
     print_node(newfile);
+    print_node(newfile2);
+    print_node(newfile3);
+    print_node(newfile4);
+    print_node(newfile5);
+    Rlist* newflist = new_Rlist();
+    rappend(newflist,"diff.c_230227172302",1,0);
+    rappend(newflist,"diff.c_230227172319",1,0);
+    rappend(newflist,"diff.c_230227172320",1,0);    
+    rappend(newflist,"a.c_230227172320",1,0);   
+
+    rpopleft(newflist);
+    rpopleft(newflist);
+    rpopleft(newflist);
+    rpopleft(newflist);
+    rpopleft(newflist);
+    
+    //동작 확인완료
+    /*make_directory("/home/junhyeong/backup/test1/test2/test3.c");*/
+
+    //동작 확인완료 
+    /*
+    if( file_cpy("/home/junhyeong/go2/2023_assignment", "/home/junhyeong/backup/2023_assignment") <0)
+    {
+        fprintf(stderr, "File Cpy Error \n");
+        exit(1);
+    }
+    */
+    
+    /* 
+    //잘 돌아가는거 확인
+    if(node_file_cpy(newfile3) < 0)
+    {
+        fprintf(stderr, "File Cpy Error \n");
+        exit(1);
+    }
+    
+    if(node_file_cpy(newfile6) < 0)
+    {
+        fprintf(stderr, "File Cpy Error \n");
+        exit(1);
+    }
+    */
 	exit(0);
+}
+
+/** 
+ *  : 파일 복사할 때 서브 디렉토리가 존재하는지 여부 체크
+ *  존재하지 않으면 새로생성.
+*/
+int make_directory (char* dest)
+{
+    char tmp_path [MAXPATHLEN] = {0,};
+    
+    char tmp_dest [MAXFILELEN] = {0,};
+    strcpy(tmp_dest, dest);
+    char* token_dest = strtok(tmp_dest, "/");
+    while(token_dest != NULL)
+    {
+        strcat(tmp_path,"/");
+        strcat(tmp_path, token_dest);
+        token_dest = strtok(NULL, "/");  
+        if (token_dest != NULL)             // strtok 값이 NULL 이라는건 마지막파일이라는 의미/
+        {
+            if (access(tmp_path, F_OK) != 0)
+            {
+                if (mkdir(tmp_path, 0777) < 0)
+                {
+                    printf("Making directory : %s Error !\n", tmp_path);
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ *  현재 시간 _230227172231 생성
+ *  ★ _ 가 안 붙여서 나오기 때문에 _붙여서 사용할것 
+*/
+char* curr_time()
+{
+    time_t seconds = time(NULL);
+    struct tm* now = localtime(&seconds);   // 시간 생성
+
+
+    char* file_suffix = (char*)malloc(sizeof(char)*TIME_TYPE);            //_230227172231 (백업시간) 접미어 생성.
+    memset(file_suffix, '\0', TIME_TYPE);
+    sprintf(file_suffix,"%d%02d%02d%02d%02d%02d",                        
+            now->tm_year-100, now->tm_mon+1, now->tm_mday, now->tm_hour, now->tm_min, now->tm_sec);
+
+    return file_suffix;
+}
+
+
+/** 
+ *  file_cpy()  --> 성공시 1, 실패시 0
+ * : 단순 a경로->b경로 파일 복사.
+ *  
+ *  동작확인
+ */
+int file_cpy (char* a_file, char* b_file)
+{
+    if (access(a_file,R_OK) != 0)
+        return 0;
+
+    int fd1, fd2;
+    char read_buf[BUFSIZE] = {0,};                      //BUFSIZE   =    1024*16*
+
+    fd1 = open (a_file, O_RDONLY);
+    fd2 = open (b_file, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU | S_IRWXG | S_IRWXO);
+    if (fd1 < 0)
+    {
+        fprintf(stderr, "Fopen Error : %s\n", a_file);
+        return 0;
+    }
+
+    make_directory(b_file);
+    if (fd2 < 0)
+    {
+        fprintf(stderr, "Fopen Error : %s\n", b_file);
+        return 0;
+    }
+
+    int read_cnt;
+    while((read_cnt =read(fd1, read_buf, BUFSIZE)) > 0)
+    {
+        int write_cnt = write(fd2, read_buf, read_cnt);
+        printf("%s\n", read_buf);
+        if (write_cnt != read_cnt)
+        {
+            printf("write_error :%s\n", b_file);
+            close(fd1);
+            close(fd2);
+            return 0;
+        }
+    }
+
+    close(fd1);
+    close(fd2);
+    return 1;
 }
 
 
 
+/** 
+ * node로 받는 파일복사함수 (A->B 복사)
+ *      성공하면 1 실패하면 0
+ * a_node 가 디렉토리라면 해당 경로에 디렉토리 생성.
+*/
+int node_file_cpy (Filenode* a_node)
+{ 
+    if (a_node == NULL)
+        return 0;
+    
+    if (S_ISDIR(a_node->file_stat.st_mode))
+    {
+        if (access(a_node->inverse_path, F_OK) != 0)
+        {
+            if (mkdir(a_node->inverse_path, 0777) < 0)
+            {
+                printf("Make Directory Error! : %s\n", a_node->inverse_path);
+            }
+        }
+        return 1;
+    }
+
+
+    // original->backup     의 경우에는 원래파일 + 백업시간을 붙여서 생성해야하고,
+    // back_up-> original   의 경우에는 백업시간붙은파일 -> 분리시켜서 보내야한다.
+    int check = file_cpy(a_node->path_name, a_node->inverse_path);
+
+    if (check)          // 성공하면 1 실패하면 0이다.
+        return 1;
+    else
+        return 0;
+}
+
+/** 해시 비교함수
+ *  같으면 1 , 다르면 0
+ * 
+*/
+int hash_compare (Filenode* a_node, Filenode* b_node)
+{
+    char* a_hash = a_node->hash;
+    char* b_hash = b_node->hash;
+    return strcmp(a_hash,b_hash) == 0;
+}
+
+/** Rlist 초기화함수 */
+Rlist* new_Rlist()
+{
+    Rlist *newRlist = (Rlist*)malloc(sizeof(Rlist));
+    newRlist->file_cnt = 0;
+    newRlist->header = newRlist->rear = NULL;
+    return newRlist;
+}
+
+
+/** Rlist에 단순 연결*/
+void rappend (Rlist* rlist, char* file_name, int opt, int f_opt)
+{
+    Filenode* newnode = new_filenodes(file_name, opt, f_opt);
+    if (newnode == NULL)
+    {
+        printf("this filename %s is can't be opened\n", file_name);
+        return;
+    }
+
+    if (rlist->file_cnt == 0)
+    {
+        rlist->header = rlist->rear = newnode;
+        rlist->file_cnt = 1;
+    }
+    else
+    {
+        rlist->header->next = newnode;
+        rlist->header = newnode;
+        rlist->file_cnt++;
+    }
+}
+
+
+/** 
+ *  rplopleft(rlist)    --> Filenode* 삭제될 노드
+ * : 큐형태로 rear 부분을 지워주고 return해주는 함수
+ *  
+ * 
+ * ★ free를 해주지 않으므로 사용하고 return 받은 node를 꼭 free 해줄 것.
+*/
+Filenode* rpopleft (Rlist* rlist)
+{
+    if( rlist->file_cnt == 0 )
+    {
+        printf("This list is NULL\n");
+        return NULL;
+    }
+
+    Filenode* return_node;
+    if (rlist->file_cnt == 1)
+    {
+        return_node = rlist->rear;
+        rlist->header = rlist->rear = NULL;
+        rlist->file_cnt--;
+        return return_node;
+    }
+    else
+    {
+        return_node = rlist->rear;
+        rlist->rear = rlist->rear->next;
+        rlist->file_cnt--;
+        return return_node; 
+    }
+}
+
+
+
+/**
+ * Filenode 생성자(기초) : new_filenodes 에서 사용하는 내부 함수 (쌩으로 쓰는 것 지양할것)
+ * 
+*/
 Filenode* new_filenode ()                                // 기본 초기화
 {
     Filenode* newfile = (Filenode*)malloc(sizeof(Filenode));
@@ -152,6 +452,7 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
     strcpy(tmp_path, newfile->path_name);
     char* tks = tmp_path + strlen(opt==1 ? BACKUP_PATH : ACTUAL_PATH);
     strcpy(newfile->actual_path, tks);
+
     char* tmp_ptr = strrchr(newfile->path_name, '/');
     tmp_ptr++;
     strcpy(newfile->file_name, tmp_ptr);
@@ -176,9 +477,20 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         
     }
     if (opt == 1)
-        sprintf(newfile->inverse_path,"%s%s", ACTUAL_PATH, newfile->file_name);
+    {
+        sprintf(newfile->inverse_path,"%s%s", ACTUAL_PATH, newfile->actual_path);
+        char* time_token = strrchr(newfile->inverse_path, '_');
+        if (time_token != NULL)
+            memset(time_token,'\0', TIME_TYPE);
+    }
     else
-        sprintf(newfile->inverse_path,"%s/%s", BACKUP_PATH, newfile->file_name);
+    {
+        char* cur_time_ptr = curr_time();
+        strcpy(newfile->back_up_time, cur_time_ptr);
+        sprintf(newfile->inverse_path,"%s%s_%s", BACKUP_PATH, newfile->actual_path,cur_time_ptr);
+        
+    }
+
 
     if (access(newfile->path_name, R_OK) != 0)          //없거나 접근 불가능할 때,
     {
@@ -340,6 +652,7 @@ void print_node (Filenode* node)
         printf("%s is directory file\n", node->path_name);
     else
         printf("%s is Regular file\n", node->path_name);
+    printf("\n\n");
 }
 
 
@@ -356,7 +669,7 @@ int cmd_add(char* backup_path, char* file_name)
 {
     if (access(BACKUP_PATH, F_OK) != 0) // 파일 존재하지 않을 경우 디렉토리 생성
     {
-        if (mkdir(BACKUP_PATH, 777) < 0)
+        if (mkdir(BACKUP_PATH, 0777) < 0)
         {
             fprintf(stderr, "Make Directory Error\n");
             return -1;
