@@ -155,7 +155,7 @@ int ssu_add (char* file_name, int flag, int f_opt);
 
 int main(void)
 {
-    int check = ssu_add("/home/junhyeong", 1, 0);
+    int check = ssu_add("/home/junhyeong/lect", 1, 0);
     //잘되는거 확인완료
     /*
     Rlist* original_sub_path = original_search("/home/junhyeong", 1, 1);
@@ -245,8 +245,6 @@ int ssu_add (char* file_name, int flag, int f_opt)
         }
         if (S_ISDIR(tmp_node->file_stat.st_mode))
         {
-            char* token_ptr = strrchr(backup_path, '/');
-            *token_ptr = '\0';
             Rlist* original_node = original_search(original_path, f_opt, 1);
             Flist* backup_node = backup_search(backup_path, f_opt, 1);
 
@@ -298,8 +296,6 @@ int ssu_add (char* file_name, int flag, int f_opt)
             return 0;
         }
         // 실제로 해보니 해당 경로에 있는 값들을 다 가져와서 비교해야됨
-        char* token_ptr = strrchr(backup_path, '/');
-        *token_ptr = '\0';
         Rlist* original_node = original_search (original_path, f_opt, 0);
         Flist* backup_node = backup_search (backup_path, f_opt, 0);
 
@@ -437,7 +433,10 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
                         char sub_file_name[MAXFILELEN];
                         strcpy(sub_file_name, sub_dir[i]->d_name);
                         if (strcmp(sub_file_name, ".") == 0 || strcmp(sub_file_name, "..") == 0)
+                        {
+                            free(sub_dir[i]);   
                             continue;
+                        }
                         strcpy(modify_ptr, sub_file_name);
                         rappend(rlist, path_name, 0, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
                         free(sub_dir[i]);   
@@ -476,7 +475,10 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
                 char sub_file_name[MAXFILELEN];
                 strcpy(sub_file_name, sub_dir[i]->d_name);
                 if (strcmp(sub_file_name, ".") == 0 || strcmp(sub_file_name, "..") == 0)
+                {
+                    free(sub_dir[i]);   
                     continue;
+                }
                 strcpy(modify_ptr, sub_file_name);
                 rappend(rlist, path_name, 0, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
                 free(sub_dir[i]);   
@@ -539,7 +541,10 @@ Flist* backup_search(char* file_name, int f_opt, int all)             // 해시 
                     char sub_file_name[MAXFILELEN];
                     strcpy(sub_file_name, sub_dir[i]->d_name);
                     if (strcmp(sub_file_name, ".") == 0 || strcmp(sub_file_name, "..") == 0)
+                    {
+                        free(sub_dir[i]);
                         continue;
+                    }
                     strcpy(modify_ptr, sub_file_name);
                     append(flist, tmp_name, 1, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
                     free(sub_dir[i]);   
@@ -572,7 +577,10 @@ Flist* backup_search(char* file_name, int f_opt, int all)             // 해시 
                 char sub_file_name[MAXFILELEN];
                 strcpy(sub_file_name, sub_dir[i]->d_name);
                 if (strcmp(sub_file_name, ".") == 0 || strcmp(sub_file_name, "..") == 0)
+                {
+                    free(sub_dir[i]); 
                     continue;
+                }
                 strcpy(modify_ptr, sub_file_name);
                 append(flist, tmp_name, 1, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
                 free(sub_dir[i]);   
@@ -869,7 +877,7 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         strcpy(newfile->path_name, ACTUAL_PATH);
         char* cur_time_ptr = curr_time(); 
         strcpy(newfile->back_up_time, cur_time_ptr);
-        sprintf(newfile->inverse_path, "%s/%s", BACKUP_PATH, cur_time_ptr); //일관성유지
+        sprintf(newfile->inverse_path, "%s", BACKUP_PATH); //일관성유지
         stat(ACTUAL_PATH, &(newfile->file_stat));
         return newfile;
     }
@@ -912,21 +920,6 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
 
         
     }
-    if (opt == 1)
-    {
-        sprintf(newfile->inverse_path,"%s%s", ACTUAL_PATH, newfile->actual_path);
-        char* time_token = strrchr(newfile->inverse_path, '_');
-        if (time_token != NULL)
-            memset(time_token,'\0', TIME_TYPE);
-    }
-    else
-    {
-        char* cur_time_ptr = curr_time();
-        strcpy(newfile->back_up_time, cur_time_ptr);
-        sprintf(newfile->inverse_path,"%s%s_%s", BACKUP_PATH, newfile->actual_path,cur_time_ptr);
-        
-    }
-
 
     if (access(newfile->path_name, R_OK) != 0)          //없거나 접근 불가능할 때,
     {
@@ -945,6 +938,31 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         free(newfile);
         return NULL;
     }
+
+
+    if (opt == 1)
+    {
+        sprintf(newfile->inverse_path,"%s%s", ACTUAL_PATH, newfile->actual_path);
+        char* time_token = strrchr(newfile->inverse_path, '_');
+        if (time_token != NULL)
+            memset(time_token,'\0', TIME_TYPE);
+    }
+    else
+    {
+        if (!S_ISDIR(newfile->file_stat.st_mode))
+        {
+            char* cur_time_ptr = curr_time();
+            strcpy(newfile->back_up_time, cur_time_ptr);
+            sprintf(newfile->inverse_path,"%s%s_%s", BACKUP_PATH, newfile->actual_path,cur_time_ptr);
+        }
+        else
+        {
+            sprintf(newfile->inverse_path,"%s%s", BACKUP_PATH, newfile->actual_path);
+        }
+        
+    }
+
+
     
     //파일용량 (MAX_FILE_SIZE : 100000000) 로 제한 : 안 해주면 4기가짜리 파일 읽는데 시간 엄청걸림
     if (newfile->file_stat.st_size > MAX_FILE_SIZE)
@@ -1067,7 +1085,7 @@ void flist_sizeup (Flist* flst)
 {
     if (flst->dir_cnt >= flst->max_dir_cnt)
     {
-        flst->dir_array = (Filenode**)realloc(flst->dir_array, sizeof(sizeof(Filenode*)*flst->max_dir_cnt*2));
+        flst->dir_array = (Filenode**)realloc(flst->dir_array, sizeof(Filenode*) * flst->max_dir_cnt*2);
         for (int i = flst->max_dir_cnt ; i < flst->max_dir_cnt*2 ; i++)
             flst->dir_array[i] = NULL;
         flst->max_dir_cnt *= 2;
@@ -1075,10 +1093,11 @@ void flist_sizeup (Flist* flst)
 
     if (flst->file_cnt >= flst->max_file_cnt)
     {
-        flst->file_array = (Filenode**)realloc(flst->file_array, sizeof(sizeof(Filenode*)*flst->max_file_cnt*2));
-        flst->file_rear_table = (Filenode**)realloc(flst->file_rear_table, sizeof(sizeof(Filenode*)*flst->max_file_cnt*2));
-        flst->file_cnt_table = (int*)realloc(flst->file_cnt_table, sizeof(sizeof(int)*flst->max_file_cnt*2));
         
+        flst->file_array = (Filenode**)realloc(flst->file_array, sizeof(Filenode*) * flst->max_file_cnt*2);
+        flst->file_rear_table = (Filenode**)realloc(flst->file_rear_table, sizeof(Filenode*) * flst->max_file_cnt*2);
+        flst->file_cnt_table = (int*)realloc(flst->file_cnt_table, sizeof(int*) * flst->max_file_cnt*2);
+
         for (int i = flst->max_file_cnt ; i < flst->max_file_cnt*2 ; i++)
         {
             flst->file_array[i] = NULL;
