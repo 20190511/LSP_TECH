@@ -113,9 +113,9 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt);        // 파일 �
 void flist_sizeup (Flist* flst);                                     // Flist 인덱스 사이즈업.
 Flist* new_flist ();
 Rlist* new_Rlist();
-void print_node (Filenode* node);
-void print_rlist (Rlist* rlist);
-void print_flist (Flist* flist);
+void print_node (Filenode* node);                                    // Filenode Unit 상태 출력
+void print_rlist (Rlist* rlist);                                     // rlist 모든 요소 출력
+void print_flist (Flist* flist);                                     // flist 모든 요수 출력
 void append (Flist* flist, char* file_name, int opt, int f_opt);     // flist 파일 array 대해 추가. option 0: orignal, 1: Backup
 void delete (Flist* flist, char* del_path, int f_opt);               // flist 해당 경로 찾아서 삭제 (미구현)
 void rappend (Rlist* rlist, char* file_name, int opt, int f_opt);    // Rlist 에 file_name 경로 데이터 단순 연결
@@ -140,14 +140,13 @@ int scandir(const char *dirp, struct dirent *** namelist,
 
 int main(void)
 {
-    /*
     //잘되는거 확인완료
-    Rlist* original_sub_path = original_search("/home/junhyeong/file2.cpp", 0, 0);
+    Rlist* original_sub_path = original_search("/home/junhyeong", 1, 1);
     printf("%s sub dir cnt is %d\n", original_sub_path->rear->file_name, original_sub_path->file_cnt);
     print_rlist(original_sub_path);
-    */
+    
 
-    Flist* flist_sub_path = backup_search("/home/junhyeong/backup/tt", 1, 1);
+    Flist* flist_sub_path = backup_search("/home/junhyeong/backup", 1, 1);
     printf("%s sub dir cnt is %d+%d\n", flist_sub_path->dir_array[0]->file_name, flist_sub_path->file_cnt, flist_sub_path->dir_cnt);
     print_flist (flist_sub_path);
 
