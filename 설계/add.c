@@ -20,6 +20,7 @@
 #define BUFSIZE	            1024*16
 #define HASH_LEN            41
 #define START_FLIST_IDX     40                    //일단 파일 IDX는 40개로 시작
+#define MAX_FILE_SIZE       100000000
 
 char CWD [MAXPATHLEN];                              // 현재 위치 getcwd() 사용.
 
@@ -115,7 +116,7 @@ Flist* new_flist ();
 Rlist* new_Rlist();
 void print_node (Filenode* node);                                    // Filenode Unit 상태 출력
 void print_rlist (Rlist* rlist);                                     // rlist 모든 요소 출력
-void print_flist (Flist* flist);                                     // flist 모든 요수 출력
+void print_flist (Flist* flist);                                     // flist 모든 요소 출력
 void append (Flist* flist, char* file_name, int opt, int f_opt);     // flist 파일 array 대해 추가. option 0: orignal, 1: Backup
 void delete (Flist* flist, char* del_path, int f_opt);               // flist 해당 경로 찾아서 삭제 (미구현)
 void rappend (Rlist* rlist, char* file_name, int opt, int f_opt);    // Rlist 에 file_name 경로 데이터 단순 연결
@@ -788,8 +789,8 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         return NULL;
     }
     
-    //파일용량 10메가바이트 제한
-    if (newfile->file_stat.st_size > 100000000)
+    //파일용량 (MAX_FILE_SIZE : 100000000) 로 제한 : 안 해주면 4기가짜리 파일 읽는데 시간 엄청걸림
+    if (newfile->file_stat.st_size > MAX_FILE_SIZE)
     {
         printf("%s file size is %ld, pass\n", newfile->path_name, newfile->file_stat.st_size);
         free(newfile);
