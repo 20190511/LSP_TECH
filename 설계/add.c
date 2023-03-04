@@ -41,9 +41,9 @@ char CWD [MAXPATHLEN];                              // 현재 위치 getcwd() �
  * 
  ** 2023-3-5 구현
  *  - recover
- *  - remove
+ *  - remove                    : #include <stdio.h> , int remove( const char *path );
  *  - ls/vim 제작
- * 
+ *  - 해당 바이너리에 setuid 비트를 설정해서 실행하면 가능할 것 같습니다. (참고)
  * 
 */
 
@@ -155,7 +155,7 @@ int ssu_add (char* file_name, int flag, int f_opt);
 
 int main(void)
 {
-    int check = ssu_add("/home/junhyeong/go2/diff.c", 0, 0);
+    int check = ssu_add("/home/junhyeong", 1, 0);
     //잘되는거 확인완료
     /*
     Rlist* original_sub_path = original_search("/home/junhyeong", 1, 1);
@@ -501,7 +501,7 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
  */
 Flist* backup_search(char* file_name, int f_opt, int all)             // 해시 체이닝 구현.
 {
-    Filenode* rootnode = new_filenodes(file_name, 0, f_opt);
+    Filenode* rootnode = new_filenodes(file_name, 1, f_opt);
     Flist* flist = new_flist();
     if (rootnode == NULL)
     {
@@ -862,6 +862,29 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
 
         strcpy(newfile->path_name, filename);
     }
+
+    //home 경로인데 + opt도 같으면
+    if (strcmp(filename, ACTUAL_PATH) == 0 && opt == 0)
+    {
+        strcpy(newfile->path_name, ACTUAL_PATH);
+        char* cur_time_ptr = curr_time(); 
+        strcpy(newfile->back_up_time, cur_time_ptr);
+        sprintf(newfile->inverse_path, "%s/%s", BACKUP_PATH, cur_time_ptr); //일관성유지
+        stat(ACTUAL_PATH, &(newfile->file_stat));
+        return newfile;
+    }
+
+    // backup 경로인데 + opt까지 같으면
+    if (strcmp(filename,BACKUP_PATH) == 0 && opt == 1)
+    {
+        strcpy(newfile->path_name, BACKUP_PATH);
+        char* cur_time_ptr = curr_time(); 
+        strcpy(newfile->back_up_time, cur_time_ptr);
+        sprintf(newfile->inverse_path, "%s", ACTUAL_PATH);
+        stat(BACKUP_PATH, &(newfile->file_stat));
+        return newfile;
+    }
+
     strcpy(tmp_path, newfile->path_name);
     char* tks = tmp_path + strlen(opt==1 ? BACKUP_PATH : ACTUAL_PATH);
     strcpy(newfile->actual_path, tks);
