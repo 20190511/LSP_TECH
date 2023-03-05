@@ -19,15 +19,14 @@
 #include <time.h>
 #define BACKUP_PATH         "/home/junhyeong/backup"    //디버그용으로 백업폴더는 /home/junhyeong/backup 으로 설정     -> 잘돌아가면 root 권한으로 /home/backup 으로 변경.
 //#define BACKUP_PATH         "/home/backup"            //<- 되는거 확인
-#define ACTUAL_PATH         "/home/junhyeong"
+//#define ACTUAL_PATH         "/home/junhyeong"         // 아래 ACTUAL_PATH 전역변수 사용.
 #define TIME_TYPE           20
 #define BUFSIZE	            1024*16
 #define HASH_LEN            41
 #define START_FLIST_IDX     40                    //일단 파일 IDX는 40개로 시작
 #define MAX_FILE_SIZE       100000000
 
-char CWD [MAXPATHLEN];                              // 현재 위치 getcwd() 사용.
-
+char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
 
 
 /**
@@ -208,19 +207,44 @@ char* replace (char* original, char* rep_before, char* rep_after, int cnt);     
 int kmp (char* origin, char* target);                                                       // 문자열 교체함수에서 KMP 알고리즘 이용.
 
 
-
+//★ 시작은 무조건 ACTUAL_PATH부터 구할 것.
+void get_actualpath();
 
 int main(void)
 {
-    ssu_add ("", 1, 0);     //백업
-    
-    //ssu_remove_all();     //전체 삭제함수
-    
+    //get_actualpath();
+    //ssu_add ("", 1, 0);            //백업
+
+    //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
+    //ssu_remove_all();             //전체 삭제함수
 	exit(0);
 }
 
 
 
+void get_actualpath()
+{
+    char tmp_path [MAXPATHLEN];
+    strcpy(tmp_path, getcwd(NULL, MAXPATHLEN));
+    char* tmp_ptr = tmp_path + strlen("/home/");
+    for (int i = 0 ; i < MAXPATHLEN-strlen("/home")-1 ; i++)
+    {
+        if (*tmp_ptr == '/')
+        {
+            *tmp_ptr = '\0';
+            break;
+        }
+        tmp_ptr++;
+    }
+
+    strcpy(ACTUAL_PATH, tmp_path);
+}
+
+
+
+/**
+ *  : backup 전 디렉토리 삭제;
+*/
 void ssu_remove_all()
 {
     Flist* bs = backup_search (BACKUP_PATH, 0, 1);
@@ -1582,6 +1606,8 @@ Filenode* new_filenode ()                                // 기본 초기화
  */ 
 Filenode* new_filenodes (char* filename, int opt, int f_opt)        
 {
+    if (strlen(ACTUAL_PATH) == 0)
+        get_actualpath();
     char tmp_path[MAXPATHLEN] = {0,};
     Filenode* newfile = new_filenode();
 
