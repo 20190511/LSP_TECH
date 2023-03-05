@@ -41,9 +41,12 @@ char CWD [MAXPATHLEN];                              // 현재 위치 getcwd() �
  * 
  ** 2023-3-5 구현
  *  - recover
+ *      (+ 같은 타임테이블 비교.)
+ *      (+ md5 : 32 비트 ,SHA-1 40 비트여서 비트조정을 해줌. (new_filenodes() 비트조정.))
  *  - remove                    : #include <stdio.h> , int remove( const char *path );
  *  - ls/vim 제작
  *  - 해당 바이너리에 setuid 비트를 설정해서 실행하면 가능할 것 같습니다. (참고)
+ *  
  * 
 */
 
@@ -105,6 +108,16 @@ typedef struct rlist{
     int file_cnt;
 }Rlist;
 
+
+/**
+ * r,f 리스트를 동시에 저장하는 구조체.
+*/
+typedef struct frlist{
+    Rlist* rlist;
+    Flist* flist;
+}FRlist;
+
+
 #define PRINT_ERR(_MSG) \
 {fprintf(stderr, "%S Error !\n", _MSG);}
 
@@ -117,6 +130,7 @@ char* hash_to_string(unsigned char *md);
 
 // 해시 비교함수
 int hash_compare (Filenode* a_node, Filenode* b_node);
+int hash_compare_one (Filenode* a_node, char* path_name, int opt, int f_opt);
 
 // 구조체 초기화 함수들.
 Filenode* new_filenode ();                                           // 기본 초기화
@@ -124,6 +138,7 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt);        // 파일 �
 void flist_sizeup (Flist* flst);                                     // Flist 인덱스 사이즈업.
 Flist* new_flist ();
 Rlist* new_Rlist();
+FRlist* new_FRlist(Flist* flist, Rlist* rlist);
 void print_node (Filenode* node);                                    // Filenode Unit 상태 출력
 void print_rlist (Rlist* rlist);                                     // rlist 모든 요소 출력
 void print_flist (Flist* flist);                                     // flist 모든 요소 출력
@@ -132,10 +147,15 @@ void delete (Flist* flist, char* del_path, int f_opt);               // flist �
 void rappend (Rlist* rlist, char* file_name, int opt, int f_opt);    // Rlist 에 file_name 경로 데이터 단순 연결
 Filenode* rpopleft (Rlist* rlist);                                   // Rlist 큐 popleft
 
+void free_rlist(Rlist* rlist);                                       // rlist 모든 요소 동적할당 해제
+void free_flist(Flist* flist);                                       // flist 모든 요소 동적할당 해제
+void free_frlist(FRlist* frlist);                                    // frlist 모든 요소 동적할당 해제
+
 // 파일 복사 함수
 int file_cpy (char* a_file, char* b_file);
 int node_file_cpy (Filenode* a_node);
 int make_directory (char* dest);
+
 
 // 현재시간 _230227172231 (현재시간 생성 개체)
 char* curr_time();
@@ -152,10 +172,39 @@ int alphasort(const struct dirent **d1, const struct dirent **d2);
 // 1. add 계열함수
 int ssu_add (char* file_name, int flag, int f_opt);
 
+// 3. recover 계열 함수.
+/**
+ *  -d : 기존경로가 인 디렉토리의 모든 백업파일과 서브 디렉토리 내부의 파일들 <FILENAME> 까지 재귀적으로 복구함
+ *  -n : 기존경로가 <FILENAME> 과 일치하는 백업파일을 <NEWFILE> 경로로 바꾸어 복구를 진행하고
+ *       <NEWFILE> 의 파일 디렉토리가 없다면 생성 후 덮어씀 
+ *        , 만약, -d와 같이 쓰는 경우 <FILENAME> 디렉토리의 모든 백업파일을 <NEWNAME> 경로로 복구를 진행
+ * 
+ * 
+ * 
+ *  설계: ssu_recover_flag_d 함수에서 backup -> original path 경로로 전환시켜줄 데이터들을 Rlist 로 return
+ *       -> -n 옵션은 는 ssu_recover_flag_d 백업할 리스트를 받아와서 modify_inversepath 를 통해 경로변경.
+ * 
+ *      마지막에 한꺼번에 데이터변경.
+ * 
+ *       : 중간고찰 -> d 옵션이 오면 무조건 directory 형태로 받는다.
+*/
+int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_opt);       // replace이용. (캡슐함수)
+int modify_inversepath (Filenode* file_name, char* new_name, int flag_d);                               // file_name => new_name으로 inverse_path 변경.
+FRlist* ssu_recover_default (char* file_name, int d_flag, int f_opt);                           // d_flag 설정 여부 확인
+void print_time_and_byte (Filenode* node);                                                  // 같은 디렉토리에 대한 230227172413 15bytes 등 출력.
+void append_samefile (Flist* flist, char* original_file_name, int f_opt);                              // origin path 에 있는 같은 이름의 파일 백업 파일 긁어오기.
+
+/** 추가도구*/
+char* replace (char* original, char* rep_before, char* rep_after, int cnt);                 // 문자열 교체함수 (중요한 점은 char* a = replace() 형태로 쓸것.)
+int kmp (char* origin, char* target);                                                       // 문자열 교체함수에서 KMP 알고리즘 이용.
 
 int main(void)
 {
+    //잘되는거 확인완료
+    /*
     int check = ssu_add("/home/junhyeong", 1, 0);
+    */
+    
     //잘되는거 확인완료
     /*
     Rlist* original_sub_path = original_search("/home/junhyeong", 1, 1);
@@ -168,31 +217,11 @@ int main(void)
     print_flist (flist_sub_path);
     */
     // 잘되는거 확인완료.
-    /*
-	Filenode* newfile = new_filenodes("diff.c_230227172302", 1,0);
-	Filenode* newfile2 = new_filenodes("diff.c_230227172319", 1,0);
-	Filenode* newfile4 = new_filenodes("a.c_230227172320", 1,0);
-	Filenode* newfile3 = new_filenodes("diff.c", 0,0);
-	Filenode* newfile5 = new_filenodes("/home/junhyeong/file2.cpp", 0,0);
-	Filenode* newfile6 = new_filenodes("tt/a.c_230227172325", 1,0);
-
-    print_node(newfile);
-    print_node(newfile2);
-    print_node(newfile3);
-    print_node(newfile4);
-    print_node(newfile5);
-    Rlist* newflist = new_Rlist();
-    rappend(newflist,"diff.c_230227172302",1,0);
-    rappend(newflist,"diff.c_230227172319",1,0);
-    rappend(newflist,"diff.c_230227172320",1,0);    
-    rappend(newflist,"a.c_230227172320",1,0);   
-
-    rpopleft(newflist);
-    rpopleft(newflist);
-    rpopleft(newflist);
-    rpopleft(newflist);
-    rpopleft(newflist);
-    */
+    
+    
+    //ssu_recover("/home/junhyeong/go2/ssu_add.c", 0, 0, "Habit", 1);
+    //ssu_recover("/home/junhyeong/go2", 1, 0, "Habit", 1);
+    ssu_recover("/home/junhyeong/go2/ssu_add.c", 0, 1, "Habit", 1);
     //동작 확인완료
     /*make_directory("/home/junhyeong/backup/test1/test2/test3.c");*/
 
@@ -221,6 +250,552 @@ int main(void)
     */
 	exit(0);
 }
+
+void free_rlist(Rlist* rlist)                                       // rlist 모든 요소 동적할당 해제
+{
+    if (rlist == NULL)
+        return;
+    
+    Filenode* delnode;
+    while(rlist->rear != NULL)
+    {
+        delnode = rlist->rear;
+        rlist->rear = rlist->rear->next;
+
+        if (delnode != NULL)
+            free(delnode);
+    }
+    if (rlist != NULL)
+        free(rlist);
+    
+}
+void free_flist(Flist* flist)                                       // flist 모든 요소 동적할당 해제 (신중하게)
+{
+    if (flist == NULL)
+        return;
+
+    for (int i = 0 ; i < flist->dir_cnt ; i++)
+    {
+        if (flist->dir_array[i] != NULL)
+            free(flist->dir_array[i]);
+    }
+    if (flist->dir_array != NULL)
+        free(flist->dir_array); 
+
+    for (int i = 0 ; i < flist->file_cnt ; i++)
+    {
+        Filenode* delnode = flist->file_array[i];
+        while(flist->file_array[i] != NULL)
+        {
+            delnode = flist->file_array[i];
+            flist->file_array[i] = flist->file_array[i]->next;
+            free(delnode);
+        }
+        if (flist->file_array[i] != NULL)
+            free(flist->file_array[i]);
+        
+        if (flist->file_rear_table[i] != NULL)
+            free(flist->file_rear_table[i]);
+        
+    }
+    
+    if(flist->file_rear_table != NULL)
+        free(flist->file_rear_table);
+
+    if (flist->file_array != NULL)
+        free(flist->file_array);
+
+    if (flist->file_cnt_table != NULL)
+        free(flist->file_cnt_table);
+}
+
+void free_frlist(FRlist* frlist)                                    // frlist 모든 요소 동적할당 해제
+{
+    if(frlist->flist != NULL)
+        free(frlist->flist);
+    
+    if(frlist->rlist != NULL)
+        free(frlist->rlist);
+
+    if (frlist != NULL)
+        free(frlist);
+}
+
+/**
+ *  : ssu_recover(파일명, d_flag 사용여부, n_flag 사용여부, 새로 백업할 경로 위치, f_opt);
+ *      -> 해싱 비교과정 추가되어있음
+ * 
+ *  
+ * 
+*/
+int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_opt)       // replace이용. (캡슐함수)
+{
+    FRlist* recover_list;
+    Filenode* newnode = new_filenodes(file_name, 0, f_opt);
+    int flg_d = flag_d;
+    int flg_n = flag_n;
+    
+    if (flg_d)
+    {
+        if (!S_ISDIR(newnode->file_stat.st_mode))
+        {
+            flg_d = 0;
+        }
+        else
+        {   
+            recover_list = ssu_recover_default(newnode->path_name, flg_d, f_opt);
+            Rlist* rlist = recover_list->rlist;
+            Flist* flist = recover_list->flist;
+            char time_default[TIME_TYPE] = {0,};
+            char** prev_inverse_path;
+            if (flg_n)
+            {
+                prev_inverse_path = (char**)malloc(sizeof(char*) * flist->file_cnt);
+                for(int idx = 0 ; idx < flist->file_cnt ; idx++)
+                {
+                    prev_inverse_path[idx] = (char*)malloc(sizeof(char) * sizeof(flist->file_array[idx]->inverse_path));
+                    strcpy(prev_inverse_path[idx], flist->file_array[idx]->inverse_path);
+                    Filenode* tmp_node = flist->file_array[idx];
+                    for (int i = 0 ; i < flist->file_cnt_table[idx] ; i++)
+                    {
+                        modify_inversepath(tmp_node, new_name, flg_d);
+                        tmp_node = tmp_node->next;
+                    }
+                }
+            }
+
+
+            for (int i = 0 ; i < flist->file_cnt ; i++)
+            {
+                if (flist->file_cnt_table[i] == 1)
+                {
+                    if (!hash_compare_one(flist->file_array[i], flist->file_array[i]->inverse_path, 0, f_opt)) // 복사.
+                    {
+                        printf("\"%s\" backup file recover to %s\n", flist->file_array[i]->path_name, flist->file_array[i]->inverse_path);
+                        //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
+                    }
+                    else
+                    {
+                        printf("\"%s\" and \"%s\" is same file, so Don't backup\n", flist->file_array[i]->path_name, flist->file_array[i]->inverse_path);
+                    }
+
+                }
+                if (flist->file_cnt_table[i] > 1)
+                {
+                    int time_check = 1;
+                    Filenode* tmp_node;
+                    tmp_node = flist->file_array[i];
+
+                    while(tmp_node != NULL)
+                    {
+                        if (strcmp(time_default, tmp_node->back_up_time) == 0)
+                        {
+                            if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
+                            {
+                                printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
+                                //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
+                            }
+                            else
+                            {
+                                printf("\"%s\" and \"%s\" is same file, so Don't backup\n", tmp_node->path_name, tmp_node->inverse_path);
+                            }
+                            time_check = 0;
+                            break;
+                        }
+                        tmp_node = tmp_node->next;
+                    }
+
+                    
+                    if (time_check)
+                    {
+                        printf("backup file list of \"%s\"\n", flg_n == 1 ? prev_inverse_path[i] : flist->file_array[i]->inverse_path);
+                        if (flg_n == 1)
+                        {
+                            free(prev_inverse_path[i]);
+                        }
+                        printf("0. exit\n");
+                        tmp_node = flist->file_array[i];
+
+                        for (int ni = 0 ; ni < flist->file_cnt_table[i] ; ni++)
+                        {
+                            printf("%d. %-30s%ldbytes\n", 
+                                    ni+1, tmp_node->back_up_time, tmp_node->file_stat.st_size);
+                            tmp_node = tmp_node->next;
+                        }
+
+                        printf("Choose file to recover\n");
+                        int getnum = 5000000;
+                        while (getnum < 0 || getnum > flist->file_cnt_table[0])
+                        {
+                            printf(">> ");
+                            scanf("%d", &getnum);
+                            if (getnum < 0 || getnum > flist->file_cnt_table[0])
+                                printf("Please choose 0 ~ %d nums\n",flist->file_cnt_table[0]);
+                        }
+                        getnum--;
+                        if(getnum == -1) //<- exit() 들어가면됨 : return 이 exit임 어차피 여기서 exit는 다시 프롬포트띄워야함
+                        {
+                            free(newnode);
+                            free_frlist(recover_list);
+                            return 1;
+                        }
+                        else
+                        {
+                            tmp_node = flist->file_array[i];
+                            for (int s = 0 ; s < getnum ; s++)
+                                tmp_node = tmp_node->next;
+                            strcpy(time_default, tmp_node->back_up_time);
+                            if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
+                            {
+                                printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
+                                //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
+                            }
+                            else
+                            {
+                                printf("\"%s\" and \"%s\" is same file, so Don't backup\n", tmp_node->path_name, tmp_node->inverse_path);
+                            }
+                        }
+                    }
+
+                }
+            }
+            if(flg_n)
+            {
+                free(prev_inverse_path);
+            }
+        }
+    }
+
+    if (!flg_d)
+    {
+        if (S_ISDIR(newnode->file_stat.st_mode))
+        {
+            free(newnode);
+            printf("\"%s\" is a directory\n", newnode->path_name);
+            return 0;
+        }
+
+        recover_list = ssu_recover_default(newnode->path_name, flg_d, f_opt);
+        Rlist* rlist = recover_list->rlist;
+        Flist* flist = recover_list->flist;
+        char time_default[TIME_TYPE] = {0,};
+        char* prev_inverse_path;
+        if (flg_n)
+        {
+            prev_inverse_path = (char*)malloc(sizeof(char) * sizeof(flist->file_array[0]->inverse_path));
+            strcpy(prev_inverse_path, flist->file_array[0]->inverse_path);
+            Filenode* tmp_node = flist->file_array[0];
+            for (int i = 0 ; i < flist->file_cnt_table[0] ; i++)
+            {
+                modify_inversepath(tmp_node, new_name, flg_d);
+                tmp_node = tmp_node->next;
+            }
+        }
+
+
+        if (flist->file_cnt_table[0] == 1)
+        {
+            if (!hash_compare_one(flist->file_array[0], flist->file_array[0]->inverse_path, 0, f_opt)) // 복사.
+            {
+                printf("\"%s\" backup file recover to \"%s\"\n", flist->file_array[0]->path_name, flist->file_array[0]->inverse_path);
+                //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
+            }
+            else
+            {
+                printf("\"%s\" and \"%s\" is same file, so Don't backup\n", flist->file_array[0]->path_name, flist->file_array[0]->inverse_path);
+            }
+
+        }
+        if (flist->file_cnt_table[0] > 1)
+        {
+            int time_check = 1;
+            Filenode* tmp_node;
+            tmp_node = flist->file_array[0];
+
+            while(tmp_node != NULL)
+            {
+                if (strcmp(time_default, tmp_node->back_up_time) == 0)
+                {
+                    if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
+                    {
+                        printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
+                        //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
+                    }
+                    else
+                    {
+                        printf("\"%s\" and \"%s\" is same file, so Don't backup\n", tmp_node->path_name, tmp_node->inverse_path);
+                    }
+                    time_check = 0;
+                    break;
+                }
+                tmp_node = tmp_node->next;
+            }
+
+            
+            if (time_check)
+            {
+                printf("backup file list of \"%s\"\n", flg_n == 1 ? prev_inverse_path : flist->file_array[0]->inverse_path);
+                if (flg_n == 1)
+                {
+                    free(prev_inverse_path);
+                }
+                printf("0. exit\n");
+                tmp_node = flist->file_array[0];
+
+                for (int ni = 0 ; ni < flist->file_cnt_table[0] ; ni++)
+                {
+                    printf("%d. %-30s%ldbytes\n", 
+                            ni+1, tmp_node->back_up_time, tmp_node->file_stat.st_size);
+                    tmp_node = tmp_node->next;
+                }
+
+                printf("Choose file to recover\n");
+                int getnum = 5000000;
+                while (getnum < 0 || getnum > flist->file_cnt_table[0])
+                {
+                    printf(">> ");
+                    scanf("%d", &getnum);
+                    if (getnum < 0 || getnum > flist->file_cnt_table[0])
+                        printf("Please choose 0 ~ %d nums\n",flist->file_cnt_table[0]);
+                }
+                getnum--;
+                if(getnum == -1)                //exit() 들어가는 자리
+                {
+                    free(newnode);
+                    free_frlist(recover_list);
+                    return 1;
+                }
+                else
+                {
+                    tmp_node = flist->file_array[0];
+                    for (int s = 0 ; s < getnum ; s++)
+                        tmp_node = tmp_node->next;
+                    strcpy(time_default, tmp_node->back_up_time);
+                    if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
+                    {
+                        printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
+                        //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
+                    }
+                    else
+                    {
+                        printf("\"%s\" and \"%s\" is same file, so Don't backup\n", tmp_node->path_name, tmp_node->inverse_path);
+                    }
+                }
+            }
+
+        }
+    }
+    
+    free(newnode);
+    free_frlist(recover_list);
+    return 1;
+}
+
+
+
+/**
+ *  : 원래경로(file_name) 을 기준으로
+ *      백업해야할 백업 폴더 (inverse_path) 로 가서
+ *      recover 할 Flist, Rlist 들을 받아오는 함수.
+ * 
+ *  d_flag -> 0:단일 파일경로 출력, 1: 하위 폴더 모두 긁어옴.
+ * 
+ */
+FRlist* ssu_recover_default (char* file_name, int d_flag, int f_opt)
+{
+    int check = 1;
+    Filenode* newfile = new_filenodes(file_name, 0, f_opt);
+    Flist* flist = new_flist();
+    FRlist* frlist;
+    if (d_flag)
+    {
+        if (newfile == NULL)
+        {
+            return NULL;
+        }
+
+        if (S_ISDIR(newfile->file_stat.st_mode))        // -d 플래그 + file_name
+        {
+            check = 0;
+            Rlist* rlist = original_search(newfile->path_name, f_opt, 1);
+            Filenode* tmp_node = rlist->rear;
+            
+            while(tmp_node != NULL)
+            {
+                if(S_ISDIR(tmp_node->file_stat.st_mode))
+                {
+                    tmp_node = tmp_node->next;
+                    continue;
+                }
+                else
+                {
+                    append_samefile(flist, tmp_node->path_name, f_opt);
+                    tmp_node = tmp_node->next;
+                }
+            }
+            
+            free(newfile);
+            frlist = new_FRlist(flist, rlist);
+            return frlist;
+        }
+    }
+    
+    if(check)
+    {
+        // 일단 현 디렉토리 기준으로 받아야함.
+        if (newfile == NULL)
+            return NULL;
+        
+        if (S_ISDIR(newfile->file_stat.st_mode))
+        {
+            printf("\"%s\" is a directory file\n", newfile->path_name);
+            free(newfile);
+            free(flist);
+            return NULL;
+        }
+        Rlist* rlist = new_Rlist();
+        rappend(rlist, newfile->path_name, 0, f_opt);
+        append_samefile(flist, newfile->path_name, f_opt);
+        free(newfile);
+        frlist = new_FRlist(flist, rlist);
+        return frlist;
+    }
+}
+
+
+/**
+ *  : original 경로에 있는 original_file_name (상대경로시 현재경로 기준) 
+ *      의 백업파일에 있는 같은 파일들을 모두 append 해줌.
+ * 
+*/
+void append_samefile (Flist* flist, char* original_file_name, int f_opt)
+{
+    Filenode* filename = new_filenodes(original_file_name, 0 ,f_opt);
+    if (filename == NULL)
+    {
+        return;
+    }
+
+    if (S_ISDIR(filename->file_stat.st_mode))
+    {
+        free(filename);
+        return;
+    }
+
+    char inverse_path[MAXPATHLEN];
+    char* token_a = strrchr(filename->inverse_path, '_');
+    *token_a = '\0';
+    strcpy(inverse_path, filename->inverse_path);
+    
+    char* last_ptr = strrchr(filename->inverse_path, '/');
+    if (last_ptr != NULL)
+    {
+        *last_ptr = '\0';
+    }
+
+    //printf("%s\n", filename->inverse_path);
+    struct dirent** sub_dir;
+    int file_cnt;
+    if ((file_cnt = scandir(filename->inverse_path, &sub_dir, NULL, alphasort)) < 0)
+    {
+        printf("apple_samefile: Scan Error %s\n", filename->inverse_path);
+        free(filename);
+        return;
+    }
+
+    char* inverse_ptr;
+    if (file_cnt > 2)
+    {        
+        inverse_ptr = filename->inverse_path + strlen(filename->inverse_path);
+        *inverse_ptr = '/';
+        inverse_ptr++;
+    }
+    for (int i = 0 ; i < file_cnt ; i++)
+    {
+        char dir_name[MAXFILELEN]; 
+        strcpy(dir_name, sub_dir[i]->d_name);
+        char* token_ptr = strrchr(dir_name, '_');
+        if (token_ptr != NULL)
+            *token_ptr = '\0';
+        strcpy(inverse_ptr, dir_name);
+        if (strcmp(inverse_path, filename->inverse_path) == 0)
+        {
+            strcpy(inverse_ptr, sub_dir[i]->d_name);
+            append(flist, filename->inverse_path, 1, f_opt);
+        }
+
+        free(sub_dir[i]);
+    }
+    free(filename);
+    free(sub_dir);
+}
+
+
+/**
+ *  : inverse_path의 경로를 -> new_name으로 경로변경    ==> 이전의 inverse_path경로를 리턴해줌.
+ * modify_inversepath()     --> 0(실패), 1(성공), 2(워닝 : 만들었지만 타입안맞는 경우)
+ *  
+ * flag_d -> new_path 를 0:단일파일, 1:폴더 로 인식
+ * 
+ * 
+ * */
+int modify_inversepath (Filenode* node, char* new_name, int flag_d)
+{
+    char* inverse_path = (char*)malloc(sizeof(node->inverse_path));
+    strcpy(inverse_path, node->inverse_path);
+
+    if(S_ISDIR(node->file_stat.st_mode))        //디렉토리는 그냥 넘김
+        return 0;
+
+    char newname [MAXPATHLEN] = {0,};
+    if (new_name[0] != '/')
+    {
+        sprintf(newname, "%s/%s", getcwd(NULL, MAXPATHLEN), new_name);  
+    }
+    else
+        strcpy(newname, new_name);
+
+    if (strstr(newname, ACTUAL_PATH) == NULL)
+        return 0;
+
+    if (flag_d)             //d 플래그 존재시 NEWNAME은 폴더로 인식.
+    {
+        if (strstr(newname, node->file_name) == NULL)       //혹시나 파일명으로 줬다면?
+        {
+            char* name_ptr = newname + strlen(newname);
+            *name_ptr = '/';
+            name_ptr++;
+            strcpy(name_ptr,node->file_name); 
+        }
+    }
+    memset(node->inverse_path, '\0', MAXPATHLEN);
+    strcpy(node->inverse_path, newname);
+
+    char* file_type_ptr = strrchr(node->file_name,'.');
+    char* new_name_ptr = strrchr(newname,'.');
+    int check = 1;
+    if ((file_type_ptr != NULL && new_name_ptr == NULL) || 
+        (file_type_ptr == NULL && new_name_ptr != NULL) || 
+        ((file_type_ptr != NULL && new_name_ptr != NULL) && strcmp(file_type_ptr, new_name_ptr) != 0))
+    {
+        printf("warining!, [%s] -> [%s]\n>> newname type is not matched: %s->%s\n\n",
+                node->path_name, node->inverse_path ,file_type_ptr, new_name_ptr);
+    }
+
+    free(inverse_path);
+    return check;
+}
+
+
+/**
+ *  : 같은 파일 출력함수.
+ *  230227172302        13bytes 처럼 출력해주는 함수.
+ */
+void print_time_and_byte (Filenode* node)
+{
+    printf("%s        %ldbytes\n",node->back_up_time, node->file_stat.st_size);
+}
+
 
 int ssu_add (char* file_name, int flag, int f_opt)
 {
@@ -756,6 +1331,23 @@ int hash_compare (Filenode* a_node, Filenode* b_node)
     return strcmp(a_hash,b_hash) == 0;
 }
 
+int hash_compare_one (Filenode* a_node, char* path_name, int opt, int f_opt)
+{
+    Filenode* b_node = new_filenodes(path_name, opt, f_opt);
+    if (b_node == NULL)
+    {
+        return 0;
+    }
+
+    char a_hash[HASH_LEN] = {0,};  
+    char b_hash[HASH_LEN] = {0,};
+    strcpy(a_hash, a_node->hash); 
+    strcpy(b_hash, b_node->hash);
+
+    free(b_node);
+    return strcmp(a_hash,b_hash) == 0;
+}
+
 /** Rlist 초기화함수 */
 Rlist* new_Rlist()
 {
@@ -917,11 +1509,13 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         return newfile;
     }
 
+    //actual_path 만드는 과정
+    strcpy(tmp_path, newfile->path_name);
+    char* tks = tmp_path + strlen(opt==1 ? BACKUP_PATH : ACTUAL_PATH);
+    strcpy(newfile->actual_path, tks);
+
     if (!S_ISDIR(newfile->file_stat.st_mode))                               //03.05 : file_name 은 Directory 파일은 생성하지 않도록 하였음.
     {
-        strcpy(tmp_path, newfile->path_name);
-        char* tks = tmp_path + strlen(opt==1 ? BACKUP_PATH : ACTUAL_PATH);
-        strcpy(newfile->actual_path, tks);
 
         char* tmp_ptr = strrchr(newfile->path_name, '/');
         tmp_ptr++;
@@ -970,8 +1564,45 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
     }
 
 
-    
-    //파일용량 (MAX_FILE_SIZE : 100000000) 로 제한 : 안 해주면 4기가짜리 파일 읽는데 시간 엄청걸림
+    /// 마지막 확인
+    /**
+    char* path_name = NULL;
+    char* file_name = NULL;
+    char* actual_path = NULL;
+    char* inverse_path = NULL;
+    if (strstr(newfile->path_name, "//") != NULL)
+        path_name = replace(newfile->path_name, "//","/",0);
+    if (strstr(newfile->file_name, "//") != NULL)
+        file_name = replace(newfile->file_name, "//","/",0);
+    if (strstr(newfile->actual_path, "//") != NULL)
+        actual_path = replace(newfile->actual_path, "//","/",0);
+    if (strstr(newfile->inverse_path, "//") != NULL)
+        inverse_path = replace(newfile->inverse_path, "//","/",0);
+
+    if(path_name != NULL)
+    {
+        strcpy(newfile->path_name, path_name);
+        free(path_name);
+    }
+    if(file_name != NULL)
+    {
+        strcpy(newfile->file_name, file_name);
+        free(file_name);
+    }
+    if(actual_path != NULL)
+    {
+        strcpy(newfile->actual_path, actual_path);
+        free(actual_path);
+    }
+    if(inverse_path != NULL)
+    {
+        strcpy(newfile->inverse_path, inverse_path);
+        free(inverse_path);
+    }
+    print_node(newfile);
+    */
+   
+    //파일용량 (MAX_FILE_SIZE : 100000000) 로 제한 : 안 해주면 4기가짜리 파일 읽는데 시간 엄청걸림 (해싱+복사 하는 과정에 시간 너무써서 버리는걸로..)
     if (newfile->file_stat.st_size > MAX_FILE_SIZE)
     {
         printf("%s file size is %ld, pass\n", newfile->path_name, newfile->file_stat.st_size);
@@ -986,8 +1617,16 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
     }
 
     strcpy(newfile->hash, hash_ptr);
+    if (f_opt == 0)
+    {
+        char* hash_ptr_s = newfile->hash + 32;
+        memset(hash_ptr_s, '\0', 10);
+    }
     free(hash_ptr);
     fclose(fp_hash);
+
+
+
     return newfile;
 }
 
@@ -1013,6 +1652,17 @@ Flist* new_flist ()
     newflist->max_dir_cnt = START_FLIST_IDX;
 
     return newflist;
+}
+
+/**
+ * 구조체 세트 반환
+*/
+FRlist* new_FRlist(Flist* flist, Rlist* rlist)
+{
+    FRlist* frlist = (FRlist*)malloc(sizeof(frlist));
+    frlist->flist = flist;
+    frlist->rlist = rlist;
+    return frlist;
 }
 
 
@@ -1229,6 +1879,118 @@ char* hash_to_string(unsigned char *md)
     //printf("hash size is %ld\n", strlen(string_buf));
     return string_buf;
 }
+
+
+int kmp (char* origin, char* target)
+{   
+    int tar_len = strlen(target);
+    int origin_len = strlen(origin);
+    if (tar_len <= 1)
+    {
+        for (int i = 0 ; i < origin_len ; i++)
+        {
+            if (origin[i] == target[0])
+                return i;
+        }
+        return -1;
+    }
+    else
+    {
+        int* target_array = (int*)malloc(tar_len* sizeof(int));
+        memset(target_array,0, tar_len);
+        int tar_j = 0;
+        target_array[0] = 0;
+        for (int i = 1 ; i < tar_len ; i++)
+        {
+            if (target[tar_j] == target[i])
+            {
+                target_array[i] = tar_j+1;
+                tar_j++;
+            }
+            else
+                tar_j = 0;
+        }
+
+        tar_j = 0;
+        int total_check = 0;
+        for (int i = 0 ; i < origin_len ; i++)
+        {
+
+            while (tar_j > 0 && target[tar_j] != origin[i])
+            {
+                tar_j = target_array[tar_j-1];
+                total_check = tar_j;
+            }
+            
+            if (target[tar_j] == origin[i])
+            {
+                tar_j++;
+                total_check++;
+            }
+
+            if (total_check == tar_len)
+            {
+                //printf("Same String idx is %d\n", i-tar_len+1);
+                return  i-tar_len+1;
+            }
+        }
+
+        free(target_array);
+        return -1;
+    }
+
+}
+/** 
+ *  문자열 교체 함수: 마지막에 cnt에 몇 개까지 교체할 것인지 선택할 수 있음.
+ *  ★ 사용법 :  strcpy(path, replace(path, "A", "BBB"));
+ *        or    char* ptr = replace(path, "A", "BBB");
+ *
+ *  original 문자열의 rep_before 을 rep_after를 cnt만큼 바꿔줌
+ *  cnt == 0 이면 모든 문자열을 교체
+ *
+ * original 의 rep_before 을 rep_after로 교체 
+ *  kmp로 일치 문자열 찾기
+ *  ptr = 일치문자열 + 찾을 문자열길이 해서 뒷부분 복사
+ *  원본 -> 바꿀 문자열 바꾸기
+ *  붙여넣기
+ *  주의할 점은 : 할당된 문자열이 오기 때문에 사용 후 free를 해줄 것
+*/
+char* replace (char* original, char* rep_before, char* rep_after, int cnt)
+{
+    char* temp_char = (char*)malloc(strlen(original));
+    strcpy(temp_char,original);
+    int rep_cnt = cnt == 0 ? strlen(original) : cnt; //삼항연산이용.
+    for (int i = 0 ; i < rep_cnt ; i++)
+    {
+        char* ptr = temp_char;
+        int original_len = strlen(temp_char);
+        int replace_idx = kmp(temp_char, rep_before);
+        if (replace_idx == -1)
+            return temp_char;
+        ptr += replace_idx;
+        
+        //후방 문자열 복사.
+        int rear_string = replace_idx+strlen(rep_before);
+        char *temp_rear;
+        int rear_cnt;
+        if (rear_string <= original_len)
+        {
+            rear_cnt = original_len - rear_string;
+            temp_rear = (char*)malloc(rear_cnt+1);
+            memcpy(temp_rear, ptr+strlen(rep_before), rear_cnt);
+            temp_rear[rear_cnt] = '\0';
+        }
+
+        strcpy(ptr, rep_after);
+        ptr += strlen(rep_after);
+        *ptr = '\0';
+        strcat(temp_char, temp_rear);
+    }
+
+    return temp_char;
+}
+
+
 /**
  * junhyeong@DESKTOP-UPFPK8Q:~/go2$ ./hash_example diff.c 1			// 1: sha1
 	83eba35f13c8f33a7bd40e6f3194bab14091a461
