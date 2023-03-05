@@ -213,10 +213,10 @@ void get_actualpath();
 int main(void)
 {
     //get_actualpath();
-    //ssu_add ("", 1, 0);            //백업
+    //ssu_add ("/home", 1, 0);            //백업
 
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
-    //ssu_remove_all();             //전체 삭제함수
+    ssu_remove_all();             //전체 삭제함수
 	exit(0);
 }
 
@@ -249,6 +249,8 @@ void ssu_remove_all()
 {
     Flist* bs = backup_search (BACKUP_PATH, 0, 1);
     int sub_total = 0;
+    while(bs->dir_cnt != 1)
+    {
 
     for (int i = 0 ; i < bs->file_cnt ; i++)
     {
@@ -271,7 +273,6 @@ void ssu_remove_all()
         }
     }
 
-    sleep(2);
     for (int i = 0 ; i < bs->dir_cnt ; i++)
     {
         if(strcmp(bs->dir_array[i]->path_name, BACKUP_PATH) == 0)
@@ -286,6 +287,9 @@ void ssu_remove_all()
 
     printf("backup directory cleared(%d regular files and %d subdirectories totally)\n",
             bs->file_cnt+sub_total, bs->dir_cnt);
+    free_flist(bs);
+    bs = backup_search (BACKUP_PATH, 0, 1);
+    }  
     free_flist(bs);
 }
 
@@ -410,10 +414,16 @@ void free_rlist(Rlist* rlist)                                       // rlist 모
         rlist->rear = rlist->rear->next;
 
         if (delnode != NULL)
+        {
             free(delnode);
+            delnode = NULL;
+        }
     }
     if (rlist != NULL)
-        free(rlist);
+    {
+        free(rlist); 
+        rlist =NULL;
+    }
     
 }
 void free_flist(Flist* flist)                                       // flist 모든 요소 동적할당 해제 (신중하게)
@@ -424,10 +434,16 @@ void free_flist(Flist* flist)                                       // flist 모
     for (int i = 0 ; i < flist->dir_cnt ; i++)
     {
         if (flist->dir_array[i] != NULL)
-            free(flist->dir_array[i]);
+        {
+            flist->dir_array[i] = NULL;
+            free(flist->dir_array[i]); 
+        }
     }
     if (flist->dir_array != NULL)
-        free(flist->dir_array); 
+    {
+        flist->dir_array = NULL;
+        free(flist->dir_array);
+    }
 
     for (int i = 0 ; i < flist->file_cnt ; i++)
     {
@@ -436,24 +452,39 @@ void free_flist(Flist* flist)                                       // flist 모
         {
             delnode = flist->file_array[i];
             flist->file_array[i] = flist->file_array[i]->next;
-            free(delnode);
+            delnode = NULL;
+            free(delnode); 
         }
-        if (flist->file_array[i] != NULL)
-            free(flist->file_array[i]);
         
         if (flist->file_rear_table[i] != NULL)
-            free(flist->file_rear_table[i]);
+        {
+            //double free or corruption (!prev) 발생.
+            /**
+             * 해결책은 NULL 해주고 할당 해제해주기.
+            */
+            flist->file_rear_table[i] = NULL;
+            free(flist->file_rear_table[i]); 
+        }
         
     }
     
     if(flist->file_rear_table != NULL)
-        free(flist->file_rear_table);
+    {
+        flist->file_rear_table=NULL;
+        free(flist->file_rear_table); 
+    }
 
     if (flist->file_array != NULL)
-        free(flist->file_array);
+    {
+        flist->file_array = NULL;
+        free(flist->file_array); 
+    }
 
     if (flist->file_cnt_table != NULL)
-        free(flist->file_cnt_table);
+    {
+        flist->file_cnt_table=NULL;
+        free(flist->file_cnt_table); 
+    }
 }
 
 void free_frlist(FRlist* frlist)                                    // frlist 모든 요소 동적할당 해제
