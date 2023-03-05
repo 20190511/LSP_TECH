@@ -155,7 +155,7 @@ int ssu_add (char* file_name, int flag, int f_opt);
 
 int main(void)
 {
-    int check = ssu_add("/home/junhyeong/lect", 1, 0);
+    int check = ssu_add("/home/junhyeong", 1, 0);
     //잘되는거 확인완료
     /*
     Rlist* original_sub_path = original_search("/home/junhyeong", 1, 1);
@@ -405,10 +405,18 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
                 char path_name [MAXPATHLEN] = {0,};
                 strcpy(path_name, rlist->rear->path_name);
                 char *modify_ptr = path_name + strlen(path_name);                   //이름 수정할 포인터
+                
+                /** ★긴급 디버깅!! : 백업 폴더 중첩 방지코드*/
+                if (strstr(rlist->rear->path_name, BACKUP_PATH) != NULL)            // 03.05 : 긴급 디버깅 -> 백업폴더중첩 방지
+                {
+                    rlist->rear = rlist->rear->next;
+                    continue;
+                }
 
                 char* orignal_ptr = modify_ptr;
                 if (S_ISDIR(rlist->rear->file_stat.st_mode))
                 {
+
                     strcat(path_name, "/");
                     modify_ptr++;
                     orignal_ptr = modify_ptr;
@@ -871,56 +879,6 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         strcpy(newfile->path_name, filename);
     }
 
-    //home 경로인데 + opt도 같으면
-    if (strcmp(filename, ACTUAL_PATH) == 0 && opt == 0)
-    {
-        strcpy(newfile->path_name, ACTUAL_PATH);
-        char* cur_time_ptr = curr_time(); 
-        strcpy(newfile->back_up_time, cur_time_ptr);
-        sprintf(newfile->inverse_path, "%s", BACKUP_PATH); //일관성유지
-        stat(ACTUAL_PATH, &(newfile->file_stat));
-        return newfile;
-    }
-
-    // backup 경로인데 + opt까지 같으면
-    if (strcmp(filename,BACKUP_PATH) == 0 && opt == 1)
-    {
-        strcpy(newfile->path_name, BACKUP_PATH);
-        char* cur_time_ptr = curr_time(); 
-        strcpy(newfile->back_up_time, cur_time_ptr);
-        sprintf(newfile->inverse_path, "%s", ACTUAL_PATH);
-        stat(BACKUP_PATH, &(newfile->file_stat));
-        return newfile;
-    }
-
-    strcpy(tmp_path, newfile->path_name);
-    char* tks = tmp_path + strlen(opt==1 ? BACKUP_PATH : ACTUAL_PATH);
-    strcpy(newfile->actual_path, tks);
-
-    char* tmp_ptr = strrchr(newfile->path_name, '/');
-    tmp_ptr++;
-    strcpy(newfile->file_name, tmp_ptr);
-
-    if (opt == 1)
-    {
-        char origin_filename[MAXFILELEN] = {0,};
-        strcpy(tmp_path, newfile->file_name);
-        
-        char* new_ptr = strrchr(newfile->file_name,'_');        //백업 시간 결정. (strtok를 쓰기엔 _가 파일명에 들어가 있을 수 있음.)
-        char* name_ptr = newfile->file_name;
-        if (new_ptr != NULL)                                    // a.txt_230227172331 이걸 -> a.txt 와 230227172331 로 구분.
-        {
-            new_ptr++;
-            strcpy(newfile->back_up_time, new_ptr);
-            new_ptr--;
-            char* cpy_cnt = name_ptr + (new_ptr - name_ptr);
-            memset(cpy_cnt, '\0', TIME_TYPE);
-            *cpy_cnt = '\0';
-        }
-
-        
-    }
-
     if (access(newfile->path_name, R_OK) != 0)          //없거나 접근 불가능할 때,
     {
         free(newfile);
@@ -939,11 +897,60 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         return NULL;
     }
 
+    //home 경로인데 + opt도 같으면
+    if (strcmp(filename, ACTUAL_PATH) == 0 && opt == 0)
+    {
+        strcpy(newfile->path_name, ACTUAL_PATH);
+        char* cur_time_ptr = curr_time(); 
+        strcpy(newfile->back_up_time, cur_time_ptr);
+        sprintf(newfile->inverse_path, "%s", BACKUP_PATH); //일관성유지
+        return newfile;
+    }
 
-    if (opt == 1)
+    // backup 경로인데 + opt까지 같으면
+    if (strcmp(filename,BACKUP_PATH) == 0 && opt == 1)
+    {
+        strcpy(newfile->path_name, BACKUP_PATH);
+        char* cur_time_ptr = curr_time(); 
+        strcpy(newfile->back_up_time, cur_time_ptr);
+        sprintf(newfile->inverse_path, "%s", ACTUAL_PATH);
+        return newfile;
+    }
+
+    if (!S_ISDIR(newfile->file_stat.st_mode))                               //03.05 : file_name 은 Directory 파일은 생성하지 않도록 하였음.
+    {
+        strcpy(tmp_path, newfile->path_name);
+        char* tks = tmp_path + strlen(opt==1 ? BACKUP_PATH : ACTUAL_PATH);
+        strcpy(newfile->actual_path, tks);
+
+        char* tmp_ptr = strrchr(newfile->path_name, '/');
+        tmp_ptr++;
+        strcpy(newfile->file_name, tmp_ptr);
+
+        if (opt == 1)
+        {
+            char origin_filename[MAXFILELEN] = {0,};
+            strcpy(tmp_path, newfile->file_name);
+            
+            char* new_ptr = strrchr(newfile->file_name,'_');        //백업 시간 결정. (strtok를 쓰기엔 _가 파일명에 들어가 있을 수 있음.)
+            char* name_ptr = newfile->file_name;
+            if (new_ptr != NULL)                                    // a.txt_230227172331 이걸 -> a.txt 와 230227172331 로 구분.
+            {
+                new_ptr++;
+                strcpy(newfile->back_up_time, new_ptr);
+                new_ptr--;
+                char* cpy_cnt = name_ptr + (new_ptr - name_ptr);
+                memset(cpy_cnt, '\0', TIME_TYPE);
+                *cpy_cnt = '\0';
+            } 
+        }
+    }
+
+
+    if (opt == 1)       //inverse_path 만드는 과정.
     {
         sprintf(newfile->inverse_path,"%s%s", ACTUAL_PATH, newfile->actual_path);
-        char* time_token = strrchr(newfile->inverse_path, '_');
+        char* time_token = strrchr(newfile->inverse_path, '_');                     // inverse path에서 _230227172331 를 떼줘야함.
         if (time_token != NULL)
             memset(time_token,'\0', TIME_TYPE);
     }
