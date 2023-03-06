@@ -25,7 +25,7 @@
 #define HASH_LEN            41
 #define START_FLIST_IDX     40                    //일단 파일 IDX는 40개로 시작
 #define MAX_FILE_SIZE       100000000
-
+#define DIRECTRY_ACCESS     0777
 char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
 
 
@@ -127,8 +127,12 @@ typedef struct frlist{
 #define PRINT_ERR(_MSG) \
 {fprintf(stderr, "%S Error !\n", _MSG);}
 
+// 사용하지 않는 함수계열
 int add_backup(char* backup_path, char* file_name);
 int cmd_add();
+/** 추가도구*/
+char* replace (char* original, char* rep_before, char* rep_after, int cnt);                 // 문자열 교체함수 (중요한 점은 char* a = replace() 형태로 쓸것.)
+int kmp (char* origin, char* target);                                                       // 문자열 교체함수에서 KMP 알고리즘 이용.
 
 //해싱함수 : opt:0->md5, opt:1->SHA1
 char* do_hashing(FILE *f, int opt);							//option 0 :md5, 1: sha1
@@ -149,7 +153,6 @@ void print_node (Filenode* node);                                    // Filenode
 void print_rlist (Rlist* rlist);                                     // rlist 모든 요소 출력
 void print_flist (Flist* flist);                                     // flist 모든 요소 출력
 void append (Flist* flist, char* file_name, int opt, int f_opt);     // flist 파일 array 대해 추가. option 0: orignal, 1: Backup
-void delete (Flist* flist, char* del_path, int f_opt);               // flist 해당 경로 찾아서 삭제 (미구현)
 void rappend (Rlist* rlist, char* file_name, int opt, int f_opt);    // Rlist 에 file_name 경로 데이터 단순 연결
 Filenode* rpopleft (Rlist* rlist);                                   // Rlist 큐 popleft
 
@@ -205,27 +208,190 @@ int modify_inversepath (Filenode* file_name, char* new_name, int flag_d);       
 FRlist* ssu_recover_default (char* file_name, int d_flag, int f_opt);                           // d_flag 설정 여부 확인
 void print_time_and_byte (Filenode* node);                                                  // 같은 디렉토리에 대한 230227172413 15bytes 등 출력.
 void append_samefile (Flist* flist, char* original_file_name, int f_opt);                              // origin path 에 있는 같은 이름의 파일 백업 파일 긁어오기.
-
-/** 추가도구*/
-char* replace (char* original, char* rep_before, char* rep_after, int cnt);                 // 문자열 교체함수 (중요한 점은 char* a = replace() 형태로 쓸것.)
-int kmp (char* origin, char* target);                                                       // 문자열 교체함수에서 KMP 알고리즘 이용.
-
+int check_backup_file(char* file_name);                                                     //상대적인 경로에 파일이 있는 경우 만들어줌
+void make_file_name(char* file_name);
+void scandir_makefile(char *parent_folder, char* original_path);
 
 //★ 시작은 무조건 ACTUAL_PATH부터 구할 것.
 void get_actualpath();
 
 int main(void)
 {
-    ssu_recover("/home/junhyeong", 1, 1, "/home/junhyeong/bs",0);
-    ssu_recover("/home/junhyeong/go2", 1, 1, "/home/junhyeong/bs2",0);
-    ssu_recover("/home/junhyeong", 1, 1, "/home/junhyeong/bs3",0);
-    //get_actualpath();
+    //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
 
+    ssu_add("/home/junhyeong", 1, 0);
+    //get_actualpath();
+    //ssu_recover("/home/junhyeong/",1,1, "good",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
     //ssu_remove_all();             //전체 삭제함수
 	exit(0);
 }
 
+void make_file_name(char* file_name)
+{
+    int fd;
+    char read_buf[BUFSIZE] = {0,};                      //BUFSIZE   =    1024*16*
+    strcpy(read_buf, file_name);
+    make_directory(file_name);
+    fd = open (file_name, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU | S_IRWXG | S_IRWXO);
+
+    if (fd < 0)
+    {
+        fprintf(stderr, "Fopen Error : %s\n", file_name);
+        return;
+    }
+
+    int read_cnt;
+    int write_cnt = write(fd, read_buf, read_cnt);
+
+    close(fd);
+    return;
+}
+
+
+/**
+ *  재귀적으로 돌아가면서 백업파일 다 생성.
+*/
+void scandir_makefile(char *parent_folder, char* original_path)
+{
+    char originals[MAXFILELEN] = {0,};
+    char backups[MAXFILELEN] = {0,};
+
+    sprintf(originals, "%s/", original_path);
+    sprintf(backups, "%s/", parent_folder);
+    
+    char* origin_tok = originals+ strlen(originals);
+    char* backups_tok = backups+ strlen(backups);
+
+    struct dirent** sub_dir;
+    struct stat statbuf;
+    int file_cnt;
+
+    if ((file_cnt = scandir(parent_folder, &sub_dir, NULL, alphasort)) < 0)
+    {
+        return;
+    }
+
+    for (int i = 0 ; i < file_cnt ; i++)
+    {
+        if(strcmp(sub_dir[i]->d_name, ".")==0 || strcmp(sub_dir[i]->d_name, "..")==0)
+        {
+            free(sub_dir[i]);
+            continue;
+        }    
+        
+        strcpy(origin_tok, sub_dir[i]->d_name);
+        strcpy(backups_tok, sub_dir[i]->d_name);
+
+        stat(backups, &statbuf);
+
+        if (S_ISDIR(statbuf.st_mode))
+        {
+            scandir_makefile(backups, originals);
+        }
+
+        if(S_ISREG(statbuf.st_mode))
+        {
+            char* time_tok = strrchr(originals, '_');
+            if (time_tok != NULL)
+                *time_tok = '\0';
+            make_directory(originals);
+            make_file_name(originals);
+        }
+        
+        free(sub_dir[i]);
+    }
+    free(sub_dir);
+}
+
+
+/**
+ * : 체크해보고 원래 경로에는 없지만 백업 파일에 있는 경우 원래경로에 파일 추가. 
+ * 
+*/
+int check_backup_file(char* file_name)
+{
+    // 상대적인 백업폴더경로.
+    // 파일이름.
+    if (strlen(ACTUAL_PATH) == 0)
+        get_actualpath();
+ 
+    char original_path [MAXPATHLEN] = {0,};
+    char backup_path [MAXPATHLEN] = {0, };
+    char only_file [MAXPATHLEN] = {0, };
+    char parent_folder [MAXPATHLEN] = {0, };
+    char pwd[MAXPATHLEN] = {0,};
+    strcpy(original_path, file_name);
+    getcwd(pwd, MAXPATHLEN);
+
+    if(original_path[0] != '/')
+        sprintf(original_path, "%s/%s", pwd, file_name);
+    
+    if(strstr(original_path, ACTUAL_PATH) == NULL)
+    {
+        return 0;
+    }
+    else
+    {
+        char* back_token = original_path + strlen(ACTUAL_PATH);
+        sprintf(backup_path,"%s%s", BACKUP_PATH, back_token);
+        
+        strcpy(parent_folder, backup_path);
+        char* file_name_ptr = strrchr(parent_folder, '/');
+        if(file_name_ptr != NULL)
+            strcpy(only_file, file_name_ptr+1);
+        *file_name_ptr = '\0';
+    }
+    
+    int checks = 0;
+    int directory = 0;
+    int regular = 0;
+
+
+    struct dirent** sub_dir;
+    struct stat statbuf;
+    int file_cnt;
+    char append_file [MAXPATHLEN] = {0,};
+    if ((file_cnt = scandir(parent_folder, &sub_dir, NULL, alphasort)) < 0)
+    {
+        return 0;
+    }
+    for (int i = 0 ; i < file_cnt ; i++)
+    {
+        if (strstr(sub_dir[i]->d_name, only_file) != NULL)
+        {
+            checks = 1;
+            
+            sprintf(append_file, "%s/%s", parent_folder, sub_dir[i]->d_name);
+            stat(append_file, &statbuf);
+
+            
+            if (S_ISDIR(statbuf.st_mode))
+            {
+                directory=1;
+                make_directory(original_path);
+                mkdir(original_path, DIRECTRY_ACCESS);
+            }
+
+            if(S_ISREG(statbuf.st_mode))
+            {
+                regular=1;
+                make_directory(original_path);
+                make_file_name(original_path);
+            }
+        }
+        free(sub_dir[i]);
+    }
+    free(sub_dir);
+
+
+    if (directory)  //재귀적으로 다 살려내기.
+    {
+        scandir_makefile(backup_path, original_path);
+        //****
+    }
+    return checks;
+}
 
 
 void get_actualpath()
@@ -255,46 +421,54 @@ void ssu_remove_all()
 {
     Flist* bs = backup_search (BACKUP_PATH, 0, 1);
     int sub_total = 0;
-    while(bs->dir_cnt != 1)
+    int del_cnt = 0;
+    if (bs->file_cnt == 0)                                  //백업 파일 0개이면 프롬포트 출력
+    {  
+        printf("no file(s) in the backup\n");
+        free_flist(bs);
+        return;
+    }
+    printf("backup directory cleared(%d regular files and %d subdirectories totally)\n",
+                bs->file_cnt+sub_total, bs->dir_cnt);
+    while(bs->dir_cnt != 1 && del_cnt < 100)                             //폴더가비워질 때 까지 재귀 삭제 : (하지만 100번 이상 폴더를 탐색하는 경우에는 break;)
     {
 
-    for (int i = 0 ; i < bs->file_cnt ; i++)
-    {
-        sub_total += bs->file_cnt_table[i]-1;
-        if (bs->file_cnt_table[i] == 1)
+        for (int i = 0 ; i < bs->file_cnt ; i++)
         {
-            //파일 삭제.
-            remove(bs->file_array[i]->path_name);
-        }
-        else
-        {
-            Filenode *node = bs->file_array[i];
-            
-            while(node != NULL)
+            sub_total += bs->file_cnt_table[i]-1;
+            if (bs->file_cnt_table[i] == 1)
             {
-                node = node->next;
-                //파일 삭제
-                remove(node->path_name);
+                //파일 삭제.
+                remove(bs->file_array[i]->path_name);
+            }
+            else
+            {
+                Filenode *node = bs->file_array[i];
+                
+                while(node != NULL)
+                {
+                    node = node->next;
+                    //파일 삭제
+                    remove(node->path_name);
+                }
             }
         }
-    }
 
-    for (int i = 0 ; i < bs->dir_cnt ; i++)
-    {
-        if(strcmp(bs->dir_array[i]->path_name, BACKUP_PATH) == 0)
-            continue;
-        // 딕셔너리 삭제
-        if (rmdir(bs->dir_array[i]->path_name) < 0)
+        for (int i = 0 ; i < bs->dir_cnt ; i++)
         {
-            printf("%s can't be erased \n", bs->dir_array[i]->path_name);
-            printf("err string is %s\n", strerror(errno));
+            if(strcmp(bs->dir_array[i]->path_name, BACKUP_PATH) == 0)
+                continue;
+            // 딕셔너리 삭제
+            if (rmdir(bs->dir_array[i]->path_name) < 0)
+            {
+                printf("%s can't be erased \n", bs->dir_array[i]->path_name);
+                printf("err string is %s\n", strerror(errno));
+            }
         }
-    }
-
-    printf("backup directory cleared(%d regular files and %d subdirectories totally)\n",
-            bs->file_cnt+sub_total, bs->dir_cnt);
-    free_flist(bs);
-    bs = backup_search (BACKUP_PATH, 0, 1);
+        free_flist(bs);
+        bs = backup_search (BACKUP_PATH, 0, 1);
+        del_cnt++;
+        printf("directory delete process : %d\n", del_cnt+1);
     }  
     free_flist(bs);
 }
@@ -511,6 +685,16 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
     int flg_d = flag_d;
     int flg_n = flag_n;
     
+    if(newnode == NULL)
+    {
+        //체킹함수 제작
+        int checks = check_backup_file(file_name);
+        if (checks)
+            newnode = new_filenodes(file_name, 0, f_opt);
+        else
+            return 0;
+    }
+
     if (flg_d)
     {
         if (!S_ISDIR(newnode->file_stat.st_mode))
@@ -778,7 +962,9 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
 /**
  *  : 원래경로(file_name) 을 기준으로
  *      백업해야할 백업 폴더 (inverse_path) 로 가서
- *      recover 할 Flist, Rlist 들을 받아오는 함수.
+ *      recover 할 Flist, Rlist 들을 받아오는 함수.             
+ * 
+ *  -> 예외처리 추가 (3.6) : 백업파일에는 파일이 있는 인자면 체크 후 해당 백업파일경로에 파일 추가 후 진행. 
  * 
  *  d_flag -> 0:단일 파일경로 출력, 1: 하위 폴더 모두 긁어옴.
  * 
@@ -876,6 +1062,13 @@ void append_samefile (Flist* flist, char* original_file_name, int f_opt)
     }
 
     //printf("%s\n", filename->inverse_path);
+    ///추가 03.06
+    if (!S_ISDIR(filename->file_stat.st_mode))
+    {
+        free(filename);
+        return;
+    }
+
     struct dirent** sub_dir;
     int file_cnt;
     if ((file_cnt = scandir(filename->inverse_path, &sub_dir, NULL, alphasort)) < 0)
@@ -1704,6 +1897,7 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
     {
         if (strstr(filename, "/home") == NULL)                                                       // /home 을 벗어난 파일은 애초에 오류임.
         {
+            printf("%s is over from /home directory\n", filename);
             free(newfile);
             return NULL;
         }
@@ -1713,6 +1907,14 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
 
     if (access(newfile->path_name, R_OK) != 0)          //없거나 접근 불가능할 때,
     {
+        if (access(newfile->path_name, F_OK) != 0)
+        {
+            printf("%s is not existed!\n", filename);
+        }
+        else
+        {
+            printf("%s can not access!\n", filename);
+        }
         free(newfile);
         return NULL;
     }
