@@ -691,7 +691,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
         int checks = check_backup_file(file_name);
         if (checks)
             newnode = new_filenodes(file_name, 0, f_opt);
-        else
+        if (newnode == NULL)
             return 0;
     }
 
