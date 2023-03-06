@@ -49,7 +49,11 @@ char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
  *  - ls/vim 제작
  *  - 해당 바이너리에 setuid 비트를 설정해서 실행하면 가능할 것 같습니다. (참고)
  *  
- * 
+ *  ** file_rear_table 같은경우는 이중할당을 하지않음, 다응부터는 구조체에 명시해놓을것
+        -> free에서 double free error 가 발생하면 두 가진를 생각해볼것
+         1. double free 
+           1-2. 내가 이차원 포인터를 2차까지 할당해주었는가?
+                (만약 그냥 포인터를 담는 변수라면 구조체에 명시하자)
 */
 
 
