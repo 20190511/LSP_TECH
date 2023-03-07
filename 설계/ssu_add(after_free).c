@@ -219,9 +219,9 @@ int main(void)
 {
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
 
-    ssu_add("/home/junhyeong", 1, 0);
+    //ssu_add("/home/junhyeong/go2", 1, 0);
     //get_actualpath();
-    //ssu_recover("/home/junhyeong/",1,1, "good",1);
+    ssu_recover("/home/junhyeong/tests",1,0, "good",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
     //ssu_remove_all();             //전체 삭제함수
 	exit(0);
@@ -1063,7 +1063,9 @@ void append_samefile (Flist* flist, char* original_file_name, int f_opt)
 
     //printf("%s\n", filename->inverse_path);
     ///추가 03.06
-    if (!S_ISDIR(filename->file_stat.st_mode))
+    struct stat tmp_stat;
+    stat(filename->inverse_path, &tmp_stat);
+    if (!S_ISDIR(tmp_stat.st_mode))
     {
         free(filename);
         return;
@@ -1674,6 +1676,7 @@ int file_cpy (char* a_file, char* b_file)
     int fd1, fd2;
     char read_buf[BUFSIZE] = {0,};                      //BUFSIZE   =    1024*16*
 
+    make_directory(b_file);
     fd1 = open (a_file, O_RDONLY);
     fd2 = open (b_file, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU | S_IRWXG | S_IRWXO);
     if (fd1 < 0)
@@ -1682,7 +1685,11 @@ int file_cpy (char* a_file, char* b_file)
         return 0;
     }
 
-    make_directory(b_file);
+    // No such file or directory error! -> 
+    /**
+     * "/home/junhyeong/backup/tests/ssu_add.c_23037100559" 
+     * backup file recover to /home/junhyeong/go2/good/tests/ssu_add.c
+    */
     if (fd2 < 0)
     {
         fprintf(stderr, "Fopen Error : %s\n", b_file);
