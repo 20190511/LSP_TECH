@@ -61,6 +61,14 @@ char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
  *  - filenode == NULL 체크 안해준 부분 재설정.
  *  - 파일 경로 제한 설정.
  * 
+ * 
+ * 
+ ** 2023-3-6~8 구현
+ *  - 각종 디버깅 : add 에서 -d 옵션 사용시 regular 파일이 오는경우 regular 파일처럼 처리
+ *                 add 단일파일 _23123123(시간) 부분이 지워지지 않아 인식하지 못하던 오류 디버깅
+ * 
+ *                 getopt 사용해서 모듈화 성공
+ *                 ssu_main -> ssu_add, ssu_remove, ssu_recover fork() 호출 후 실행 방식으로 최종 구현
  */
 
 
@@ -230,7 +238,7 @@ int main(void)
 {
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
 
-    ssu_add("/home/junhyeong/go2/KMP.c", 0, 0);
+    ssu_add("/home/junhyeong/go2", 0, 0);
     //get_actualpath();
     //ssu_recover("/home/junhyeong/test",1,1, "good",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
@@ -1269,15 +1277,13 @@ int ssu_add (char* file_name, int flag, int f_opt)
 
     strcpy(original_path, tmp_node->path_name);
     strcpy(backup_path, tmp_node->inverse_path);
+    int d_flag = flag;
 
-    if (flag)       //해당경로로 모두 탐색.
+    if (d_flag)       //해당경로로 모두 탐색.
     {
         if (S_ISREG(tmp_node->file_stat.st_mode))
         {
-            printf("미구현 ㅎㅎ\n");
-
-            free(tmp_node);
-            return 1;
+            d_flag = 0;
         }
         if (S_ISDIR(tmp_node->file_stat.st_mode))
         {
@@ -1322,11 +1328,12 @@ int ssu_add (char* file_name, int flag, int f_opt)
             }
             free_rlist(original_node);
             free_flist(backup_node);
+            free(tmp_node);
+            return 0;
         }
-        free(tmp_node);
-        return 0;
     }
-    else
+    
+    if (!d_flag)
     {
         if (S_ISDIR(tmp_node->file_stat.st_mode))
         {
