@@ -20,7 +20,7 @@ int main(int argc, char* argv[]){
                                                        // [MAXPATHLEN] 으로 할당해서 쓸 것.,
     char char_prompt [MAXPROMPTLEN];
     int status;
-    if (argc != 2 && (strcmp(argv[1],"md5") != 0 && strcmp(argv[1],"md5") != 0))
+    if (argc != 2 && (strcmp(argv[1],"md5") != 0 && strcmp(argv[1],"sha1") != 0))
     {
         main_help();
     } 
