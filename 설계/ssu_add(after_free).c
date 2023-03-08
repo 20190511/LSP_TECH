@@ -17,7 +17,7 @@
 
 //아래부터 추가된 것들.
 #include <time.h>
-#define BACKUP_PATH         "/home/junhyeong/backup"    //디버그용으로 백업폴더는 /home/junhyeong/backup 으로 설정     -> 잘돌아가면 root 권한으로 /home/backup 으로 변경.
+//#define BACKUP_PATH         "/home/junhyeong/backup"  // 아래 BACKUP_PATH 설정.
 //#define BACKUP_PATH         "/home/backup"            //<- 되는거 확인
 //#define ACTUAL_PATH         "/home/junhyeong"         // 아래 ACTUAL_PATH 전역변수 사용.
 #define TIME_TYPE           20
@@ -27,7 +27,7 @@
 #define MAX_FILE_SIZE       100000000
 #define DIRECTRY_ACCESS     0777
 char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
-
+char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
 
 /**
  * 2023-3-4 :구현
@@ -50,11 +50,18 @@ char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
  *  - 해당 바이너리에 setuid 비트를 설정해서 실행하면 가능할 것 같습니다. (참고)
  *  
  *  ** file_rear_table 같은경우는 이중할당을 하지않음, 다응부터는 구조체에 명시해놓을것
-        -> free에서 double free error 가 발생하면 두 가진를 생각해볼것
-         1. double free 
-           1-2. 내가 이차원 포인터를 2차까지 할당해주었는가?
-                (만약 그냥 포인터를 담는 변수라면 구조체에 명시하자)
-*/
+ *      -> free에서 double free error 가 발생하면 두 가진를 생각해볼것
+ *       1. double free 
+ *         1-2. 내가 이차원 포인터를 2차까지 할당해주었는가?
+ *              (만약 그냥 포인터를 담는 변수라면 구조체에 명시하자)
+ * 
+ ** 2023-3-5 구현     
+ *  - 백업 경로 재설정
+ *  - 파일 file_cpy() 함수 내에 make_dir() 함수가 미리 설정되지 않아 fd2==-1 나오던 오류 에러 디버깅
+ *  - filenode == NULL 체크 안해준 부분 재설정.
+ *  - 파일 경로 제한 설정.
+ * 
+ */
 
 
 // 해시형태의 링크드리스트를 생각해보았으나 print_tree 같은 계층도를 그릴 필요 없는 경우는 그냥 단순연결리스트로 구현
@@ -212,20 +219,63 @@ int check_backup_file(char* file_name);                                         
 void make_file_name(char* file_name);
 void scandir_makefile(char *parent_folder, char* original_path);
 
-//★ 시작은 무조건 ACTUAL_PATH부터 구할 것.
+//★ 시작은 무조건 ACTUAL_PATH, BACKUP_PATH부터 구할 것.
 void get_actualpath();
+void get_backuppath();          //get_backuppath() 를 구하면 자동으로 get_actaulpath()구해줌
+
+// 파일 사이즈 체크함수.
+int file_size_check (char file_names[]);
 
 int main(void)
 {
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
 
-    //ssu_add("/home/junhyeong/go2", 1, 0);
+    ssu_add("/home/junhyeong/go2/KMP.c", 0, 0);
     //get_actualpath();
-    ssu_recover("/home/junhyeong/tests",1,0, "good",1);
+    //ssu_recover("/home/junhyeong/test",1,1, "good",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
     //ssu_remove_all();             //전체 삭제함수
 	exit(0);
 }
+
+
+int file_size_check (char file_names[])
+{
+    char file_name [4097] = {0,};    
+    strcpy(file_name, file_names);
+    realpath(file_name, file_name);
+    if (strstr(file_name, "/home") == NULL)
+    {
+        printf("%s is over from /home directory\n", file_name);
+        return 0;
+    }
+
+    if (strlen(file_name) >= MAXPATHLEN);
+    {
+        printf("%s size is %ld. It is over MAX file legnth(%d)\n", file_name,strlen(file_name), MAXPATHLEN);
+        return 0;
+    }
+
+    strcpy(file_names, file_name);
+    return 1;
+}
+
+
+
+void get_backuppath()
+{
+    if (strlen(ACTUAL_PATH) == 0)
+        get_actualpath();
+    
+    strcpy(BACKUP_PATH, ACTUAL_PATH);
+    char* plus_ptr = BACKUP_PATH + strlen(BACKUP_PATH);
+
+    *plus_ptr++ = '/';
+    
+    strcpy(plus_ptr, "backup");
+}
+
+
 
 void make_file_name(char* file_name)
 {
@@ -313,8 +363,8 @@ int check_backup_file(char* file_name)
 {
     // 상대적인 백업폴더경로.
     // 파일이름.
-    if (strlen(ACTUAL_PATH) == 0)
-        get_actualpath();
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
  
     char original_path [MAXPATHLEN] = {0,};
     char backup_path [MAXPATHLEN] = {0, };
@@ -419,6 +469,8 @@ void get_actualpath()
 */
 void ssu_remove_all()
 {
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
     Flist* bs = backup_search (BACKUP_PATH, 0, 1);
     int sub_total = 0;
     int del_cnt = 0;
@@ -1118,6 +1170,8 @@ void append_samefile (Flist* flist, char* original_file_name, int f_opt)
  * */
 int modify_inversepath (Filenode* node, char* new_name, int flag_d)
 {
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
     char pwd[MAXPATHLEN] = {0,};
     getcwd(pwd, MAXPATHLEN);
     if(S_ISDIR(node->file_stat.st_mode))        //디렉토리는 그냥 넘김
@@ -1228,7 +1282,7 @@ int ssu_add (char* file_name, int flag, int f_opt)
         if (S_ISDIR(tmp_node->file_stat.st_mode))
         {
             Rlist* original_node = original_search(original_path, f_opt, 1);
-            Flist* backup_node = backup_search(backup_path, f_opt, 1);
+            Flist* backup_node = backup_search(backup_path, f_opt, 1);              //03.08 얜 애초에 디렉토리라서 상관없음.
 
             Filenode* cpy_node = original_node->rear;
             for (int file_cnt = 0 ; file_cnt < original_node->file_cnt ; file_cnt++)
@@ -1282,6 +1336,13 @@ int ssu_add (char* file_name, int flag, int f_opt)
         }
         // 실제로 해보니 해당 경로에 있는 값들을 다 가져와서 비교해야됨
         Rlist* original_node = original_search (original_path, f_opt, 0);
+                /** 03.08 긴급 디버깅 추가*/
+        char* ptr_tok = strrchr(backup_path, '_');        //파일인 경우에는 토큰을 분리시킨다.
+        if (ptr_tok != NULL)
+        {
+            ptr_tok = strrchr(backup_path, '/');
+            *ptr_tok ='\0';
+        }
         Flist* backup_node = backup_search (backup_path, f_opt, 0);
 
         int check = 1;
@@ -1503,6 +1564,7 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
  */
 Flist* backup_search(char* file_name, int f_opt, int all)             // 해시 체이닝 구현.
 {
+    
     Filenode* rootnode = new_filenodes(file_name, 1, f_opt);
     Flist* flist = new_flist();
     if (rootnode == NULL)
@@ -1631,7 +1693,7 @@ int make_directory (char* dest)
         {
             if (access(tmp_path, F_OK) != 0)
             {
-                if (mkdir(tmp_path, 0777) < 0)
+                if (mkdir(tmp_path, DIRECTRY_ACCESS) < 0)
                 {
                     printf("Making directory : %s Error !\n", tmp_path);
                 }
@@ -1732,7 +1794,7 @@ int node_file_cpy (Filenode* a_node)
     {
         if (access(a_node->inverse_path, F_OK) != 0)
         {
-            if (mkdir(a_node->inverse_path, 0777) < 0)
+            if (mkdir(a_node->inverse_path, DIRECTRY_ACCESS) < 0)
             {
                 printf("Make Directory Error! : %s\n", a_node->inverse_path);
             }
@@ -1884,8 +1946,8 @@ Filenode* new_filenode ()                                // 기본 초기화
  */ 
 Filenode* new_filenodes (char* filename, int opt, int f_opt)        
 {
-    if (strlen(ACTUAL_PATH) == 0)
-        get_actualpath();
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
     char tmp_path[MAXPATHLEN] = {0,};
     Filenode* newfile = new_filenode();
 
@@ -2230,7 +2292,7 @@ int cmd_add(char* backup_path, char* file_name)
 {
     if (access(BACKUP_PATH, F_OK) != 0) // 파일 존재하지 않을 경우 디렉토리 생성
     {
-        if (mkdir(BACKUP_PATH, 0777) < 0)
+        if (mkdir(BACKUP_PATH, DIRECTRY_ACCESS) < 0)
         {
             fprintf(stderr, "Make Directory Error\n");
             return -1;
