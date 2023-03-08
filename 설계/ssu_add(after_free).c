@@ -236,7 +236,8 @@ int file_size_check (char file_names[]);
 void main_help();
 
 
-
+#define DEBUG
+#ifdef DEBUG
 int main(void)
 {
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
@@ -248,6 +249,7 @@ int main(void)
     //ssu_remove_all();             //전체 삭제함수
 	exit(0);
 }
+#endif
 
 
 void main_help()
