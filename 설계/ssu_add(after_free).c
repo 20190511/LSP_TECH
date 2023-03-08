@@ -69,6 +69,9 @@ char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
  * 
  *                 getopt 사용해서 모듈화 성공
  *                 ssu_main -> ssu_add, ssu_remove, ssu_recover fork() 호출 후 실행 방식으로 최종 구현
+ * 
+ * 
+ *  ++ recover 상태가 별로 안좋음. (백업은 되나, 파일이 )
  */
 
 
@@ -242,7 +245,7 @@ int main(void)
 {
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
 
-    ssu_add("/home/junhyeong/go2", 0, 0);
+    ssu_recover("/home/junhyeong/go2", 1, 1, "backup0308", 0);
     //get_actualpath();
     //ssu_recover("/home/junhyeong/test",1,1, "good",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
