@@ -233,6 +233,9 @@ void get_backuppath();          //get_backuppath() 를 구하면 자동으로 ge
 
 // 파일 사이즈 체크함수.
 int file_size_check (char file_names[]);
+void main_help();
+
+
 
 int main(void)
 {
@@ -247,18 +250,38 @@ int main(void)
 }
 
 
+void main_help()
+{
+    printf("Usage:\n"
+            "  > add [FILENAME] [OPTION]\n"
+            "    -d : add directory recursive\n"
+            "  > recover [FILENAME] [OPTION]\n"
+            "    -d : recover directory recursive\n"
+            "    -n [NEWNAME] : recover file with new name\n"
+            "  > remove [FILENAME] [OPTION]\n"
+            "    -c : remove all sub directory and files from backup directory\n"
+            "    -a [NEWNAME] : remove directory reculsive from backup directory  \n"
+            "  > ls\n"
+            "  > vi\n"
+            "  > vim\n"
+            "  > help\n"
+            "  > exit\n");
+}
+
+
 int file_size_check (char file_names[])
 {
     char file_name [4097] = {0,};    
     strcpy(file_name, file_names);
-    realpath(file_name, file_name);
+    if (file_name[0] != '/')
+        realpath(file_name, file_name);
     if (strstr(file_name, "/home") == NULL)
     {
         printf("%s is over from /home directory\n", file_name);
         return 0;
     }
 
-    if (strlen(file_name) >= MAXPATHLEN);
+    if (strlen(file_name) >= MAXPATHLEN)
     {
         printf("%s size is %ld. It is over MAX file legnth(%d)\n", file_name,strlen(file_name), MAXPATHLEN);
         return 0;
