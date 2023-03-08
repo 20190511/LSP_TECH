@@ -71,7 +71,7 @@ char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
  *                 ssu_main -> ssu_add, ssu_remove, ssu_recover fork() 호출 후 실행 방식으로 최종 구현
  * 
  * 
- *  ++ recover 상태가 별로 안좋음. (백업은 되나, 파일이 )
+ *  ++ add : 연결리스트 next 디버깅 오류 수정 상태가 별로 안좋음. (백업은 되나, 파일이 )
  */
 
 
@@ -245,7 +245,8 @@ int main(void)
 {
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
 
-    ssu_recover("/home/junhyeong/go2", 1, 1, "backup0308", 0);
+    //ssu_add("/home/junhyeong/go2/ssu_processer.c", 1, 0);
+    ssu_recover("/home/junhyeong/go2", 1, 1, "good", 0);
     //get_actualpath();
     //ssu_recover("/home/junhyeong/test",1,1, "good",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
@@ -1330,9 +1331,9 @@ int ssu_add (char* file_name, int flag, int f_opt)
                         {
                             if (strcmp(backup_node->file_array[cnt]->file_name, cpy_node->file_name) == 0)
                             {
-                                for (int i = 0 ; i < backup_node->file_cnt_table[cnt] ; i++)
+                                Filenode* node = backup_node->file_array[cnt];
+                                while (node != NULL)
                                 {
-                                    Filenode* node = backup_node->file_array[cnt];
                                     if (strcmp(node->hash, cpy_node->hash) == 0)
                                     {
                                         check = 0;
@@ -1387,9 +1388,9 @@ int ssu_add (char* file_name, int flag, int f_opt)
             {
                 if (strcmp(backup_node->file_array[cnt]->file_name, original_node->header->file_name) == 0)
                 {
-                    for (int i = 0 ; i < backup_node->file_cnt_table[cnt] ; i++)
+                    Filenode* node = backup_node->file_array[cnt];
+                    while(node != NULL)
                     {
-                        Filenode* node = backup_node->file_array[cnt];
                         if (strcmp(node->hash, original_node->header->hash) == 0)
                         {
                             check = 0;
