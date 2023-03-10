@@ -1,6 +1,6 @@
 ssu_add: ssu_add.c ssu_exec.h
-    gcc -c -o ssu_add ssu_add.c -I/usr/local/ssl/include -lcrypto
+    gcc -c -o ssu_add ssu_add.c -I/usr/local/openssl/include -lcrypto
 ssu_remove: ssu_remove.c ssu_exec.h
-    gcc -c -o ssu_remove ssu_remove.c -I/usr/local/ssl/include -lcrypto
+    gcc -c -o ssu_remove ssu_remove.c -I/usr/local/openssl/include -lcrypto
 ssu_recover: ssu_recover.c ssu_exec.h
-    gcc -c -o ssu_recover ssu_recover.c -I/usr/local/ssl/include -lcrypto
+    gcc -c -o ssu_recover ssu_recover.c -I/usr/local/openssl/include -lcrypto
