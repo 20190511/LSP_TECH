@@ -67,6 +67,39 @@ int main(int argc, char* argv[]){
             {
                 if (strcmp(prompt_cmd, "remove") != 0 && prompt_argc != 2)
                     file_size_check(prompt_argv[1]);
+                                    //일단 만약 실행파일 ex> ssu_add 가 없으면 컴파일부터.. 해주자..
+                char compile_file [1028] = {0,};
+                char compile_file_c [1030] = {0,};
+                sprintf(compile_file, "ssu_%s", prompt_cmd);
+                sprintf(compile_file_c, "%s.c", compile_file);
+                file_size_check(compile_file);
+                file_size_check(compile_file_c);
+
+                if (access(compile_file, F_OK) != 0)
+                {
+                    pid_t pid;
+                    int compile_status;
+                    if ((pid = fork()) < 0)
+                    {
+                        fprintf(stderr, "Fork Error : %s\n", prompt_cmd);
+                        continue;
+                    }
+
+                    if (pid != 0)
+                    {
+                        wait(&compile_status);
+                    }
+                    else
+                    {
+                        if (execl("/usr/bin/gcc", "gcc", "-g", compile_file_c, "-o", compile_file, "-lcrypto", NULL) == -1)
+                        {
+                            printf("execve error\n");
+                            continue;
+                        }
+                    }
+                }
+
+
                 pid_t pid;
                 if ((pid = fork()) < 0)
                 {
@@ -81,6 +114,7 @@ int main(int argc, char* argv[]){
                 }
                 else
                 {
+
                     if (execv (prompt_argv[0], prompt_argv) == -1)
                     {
                         printf("execve error\n");
