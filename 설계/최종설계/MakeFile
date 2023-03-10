@@ -1,0 +1,2 @@
+ssu_add: ssu_add.c ssu_exec.h
+    gcc -c -o ssu_add ssu_add.c -I/usr/local/ssl/include -lcrypto
