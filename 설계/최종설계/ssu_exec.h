@@ -5,27 +5,37 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <openssl/macros.h>
 #include <openssl/sha.h>            /*현재 home에 설치되어있음 */
 #include <openssl/md5.h>
+
 #include <string.h>
 #include <errno.h>
+#include <time.h>
 
 
-#define MAXPATHLEN          4097
+#define MAXPATHLEN          4097                  //디버그용 (잘돌아가는거 확인)
 #define MAXFILELEN          256
 #define MAXPROMPTLEN        1024
 
-//아래부터 추가된 것들.
-#include <time.h>
 //#define BACKUP_PATH         "/home/junhyeong/backup"  // 아래 BACKUP_PATH 설정.
 //#define BACKUP_PATH         "/home/backup"            //<- 되는거 확인
 //#define ACTUAL_PATH         "/home/junhyeong"         // 아래 ACTUAL_PATH 전역변수 사용.
+//아래부터 추가된 것들.
 #define TIME_TYPE           20
 #define BUFSIZE	            1024*16
 #define HASH_LEN            41
 #define START_FLIST_IDX     40                    //일단 파일 IDX는 40개로 시작
 #define MAX_FILE_SIZE       100000000
 #define DIRECTRY_ACCESS     0777
+#define LEGTH_ERR(_STR, _RETURN_TYPE)     if (strlen(_STR) >= MAXPATHLEN)\
+{\
+    printf("%s string length is %ld, It is over max limit length(%d)\n", _STR,strlen(_STR) ,MAXPATHLEN);\
+    return _RETURN_TYPE;\
+}
+
+
+
 char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
 char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
 
@@ -238,13 +248,10 @@ void get_backuppath();          //get_backuppath() 를 구하면 자동으로 ge
 int file_size_check (char file_names[]);
 void main_help();
 
-
 #ifdef DEBUG
 int main(void)
 {
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
-
-    ssu_add("/home/junhyeong/go2/ssu_processer.c", 1, 0);
     //ssu_recover("/home/junhyeong/go2", 1, 1, "good", 0);
     //get_actualpath();
     //ssu_recover("/home/junhyeong/test",1,1, "good",1);
@@ -253,8 +260,6 @@ int main(void)
 	exit(0);
 }
 #endif
-
-
 void main_help()
 {
     printf("Usage:\n"
@@ -402,7 +407,7 @@ int check_backup_file(char* file_name)
     if (strlen(BACKUP_PATH) == 0)
         get_backuppath();
  
-    char original_path [MAXPATHLEN] = {0,};
+    char original_path [MAXPATHLEN*2] = {0,};                       
     char backup_path [MAXPATHLEN] = {0, };
     char only_file [MAXPATHLEN] = {0, };
     char parent_folder [MAXPATHLEN] = {0, };
@@ -410,6 +415,7 @@ int check_backup_file(char* file_name)
     strcpy(original_path, file_name);
     getcwd(pwd, MAXPATHLEN);
 
+    
     if(original_path[0] != '/')
         sprintf(original_path, "%s/%s", pwd, file_name);
     
@@ -429,6 +435,8 @@ int check_backup_file(char* file_name)
         *file_name_ptr = '\0';
     }
     
+    LEGTH_ERR(original_path, 0);                                       //03.10 original path 파일 길이 제한
+
     int checks = 0;
     int directory = 0;
     int regular = 0;
@@ -437,7 +445,7 @@ int check_backup_file(char* file_name)
     struct dirent** sub_dir;
     struct stat statbuf;
     int file_cnt;
-    char append_file [MAXPATHLEN] = {0,};
+    char append_file [MAXPATHLEN*2] = {0,};
     if ((file_cnt = scandir(parent_folder, &sub_dir, NULL, alphasort)) < 0)
     {
         return 0;
@@ -449,6 +457,7 @@ int check_backup_file(char* file_name)
             checks = 1;
             
             sprintf(append_file, "%s/%s", parent_folder, sub_dir[i]->d_name);
+            LEGTH_ERR(append_file, 0);                                              //03.10 append_file 파일 길이 제한
             stat(append_file, &statbuf);
 
             
@@ -1209,6 +1218,7 @@ int modify_inversepath (Filenode* node, char* new_name, int flag_d)
     if (strlen(BACKUP_PATH) == 0)
         get_backuppath();
     char pwd[MAXPATHLEN] = {0,};
+    char file_size_check_str[MAXPATHLEN*2] = {0,};
     getcwd(pwd, MAXPATHLEN);
     if(S_ISDIR(node->file_stat.st_mode))        //디렉토리는 그냥 넘김
     {
@@ -1218,8 +1228,9 @@ int modify_inversepath (Filenode* node, char* new_name, int flag_d)
     char newname [MAXPATHLEN] = {0,};
     if (new_name[0] != '/')
     {
-        
-        sprintf(newname, "%s/%s", pwd, new_name);  
+        sprintf(file_size_check_str, "%s/%s", pwd, new_name);  
+        LEGTH_ERR(file_size_check_str, 0);
+        strcpy(newname, file_size_check_str);
     }
     else
         strcpy(newname, new_name);
@@ -1550,8 +1561,8 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
         {
             //디렉토리는 제외하고 REG 파일만 백업
             rappend(rlist, rootnode->path_name, 0, f_opt);
-
-            char path_name [MAXPATHLEN] = {0,};
+            
+            char path_name [MAXPATHLEN*2] = {0,};                           //file_size_check_str 대용
             sprintf(path_name, "%s/", rootnode->path_name);                  //경로 저장.
             char *modify_ptr = path_name + strlen(path_name);                   //이름 수정할 포인터
             char* original_ptr = modify_ptr;
@@ -1575,6 +1586,7 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
                     continue;
                 }
                 strcpy(modify_ptr, sub_file_name);
+                LEGTH_ERR(path_name, NULL);                      //03.10 수정
                 rappend(rlist, path_name, 0, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
                 free(sub_dir[i]);   
                 modify_ptr = original_ptr;
@@ -2009,6 +2021,9 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         strcpy(newfile->path_name, filename);
     }
 
+    char file_size_check_str[MAXPATHLEN*2] = {0,};      //03.10 파일 사이즈 체크전용 문자열
+
+
     if (access(newfile->path_name, R_OK) != 0)          //없거나 접근 불가능할 때,
     {
         if (access(newfile->path_name, F_OK) != 0)
@@ -2091,7 +2106,11 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
 
     if (opt == 1)       //inverse_path 만드는 과정.
     {
-        sprintf(newfile->inverse_path,"%s%s", ACTUAL_PATH, newfile->actual_path);
+        
+        sprintf(file_size_check_str,"%s%s", ACTUAL_PATH, newfile->actual_path);
+        LEGTH_ERR(file_size_check_str, NULL);                                   //에러체크
+
+        strcpy(newfile->inverse_path, file_size_check_str);
         char* time_token = strrchr(newfile->inverse_path, '_');                     // inverse path에서 _230227172331 를 떼줘야함.
         if (time_token != NULL)
             memset(time_token,'\0', TIME_TYPE);
@@ -2102,54 +2121,20 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         {
             char* cur_time_ptr = curr_time();
             strcpy(newfile->back_up_time, cur_time_ptr);
-            sprintf(newfile->inverse_path,"%s%s_%s", BACKUP_PATH, newfile->actual_path,cur_time_ptr);
+            sprintf(file_size_check_str,"%s%s_%s", BACKUP_PATH, newfile->actual_path,cur_time_ptr);
+            LEGTH_ERR(file_size_check_str, NULL);
+            strcpy(newfile->inverse_path, file_size_check_str);
             free(cur_time_ptr);
         }
         else
         {
-            sprintf(newfile->inverse_path,"%s%s", BACKUP_PATH, newfile->actual_path);
+            
+            sprintf(file_size_check_str,"%s%s", BACKUP_PATH, newfile->actual_path);
+            LEGTH_ERR(file_size_check_str, NULL);
+            strcpy(newfile->inverse_path, file_size_check_str);
         }
         
     }
-
-
-    /// 마지막 확인
-    /**
-    char* path_name = NULL;
-    char* file_name = NULL;
-    char* actual_path = NULL;
-    char* inverse_path = NULL;
-    if (strstr(newfile->path_name, "//") != NULL)
-        path_name = replace(newfile->path_name, "//","/",0);
-    if (strstr(newfile->file_name, "//") != NULL)
-        file_name = replace(newfile->file_name, "//","/",0);
-    if (strstr(newfile->actual_path, "//") != NULL)
-        actual_path = replace(newfile->actual_path, "//","/",0);
-    if (strstr(newfile->inverse_path, "//") != NULL)
-        inverse_path = replace(newfile->inverse_path, "//","/",0);
-
-    if(path_name != NULL)
-    {
-        strcpy(newfile->path_name, path_name);
-        free(path_name);
-    }
-    if(file_name != NULL)
-    {
-        strcpy(newfile->file_name, file_name);
-        free(file_name);
-    }
-    if(actual_path != NULL)
-    {
-        strcpy(newfile->actual_path, actual_path);
-        free(actual_path);
-    }
-    if(inverse_path != NULL)
-    {
-        strcpy(newfile->inverse_path, inverse_path);
-        free(inverse_path);
-    }
-    print_node(newfile);
-    */
    
     //파일용량 (MAX_FILE_SIZE : 100000000) 로 제한 : 안 해주면 4기가짜리 파일 읽는데 시간 엄청걸림 (해싱+복사 하는 과정에 시간 너무써서 버리는걸로..)
     if (newfile->file_stat.st_size > MAX_FILE_SIZE)
@@ -2367,30 +2352,30 @@ int add_backup(char* backup_path, char* file_name)
 
 }
 
-
 /**
  * 해싱 함수 : 해당 파일 f 를 option 으로 해싱
  * return -> 해싱된 문자열.
 */
 char* do_hashing(FILE *f, int opt)							//option 0 :md5, 1: sha1
 {
-    SHA_CTX hash_buf;
-    unsigned char* md[SHA_DIGEST_LENGTH];
+    SHA_CTX sha1_buf;
+    MD5_CTX md5_buf;
+    unsigned char md[SHA_DIGEST_LENGTH];
     int fd;
     int i;
     unsigned char buf[BUFSIZE];
 
     fd=fileno(f);
-    opt==0 ? MD5_Init(&hash_buf) : SHA1_Init(&hash_buf);	    // 필수! 처음 해싱할 때 생성해줘야함. (삼항연산 이용해서 사용.)
+    opt==0 ? MD5_Init(&md5_buf) : SHA1_Init(&sha1_buf);	    // 필수! 처음 해싱할 때 생성해줘야함. (삼항연산 이용해서 사용.)
     for (;;)
         {
         i=read(fd,buf,BUFSIZE);
         if (i <= 0) break;
         // 읽은 개수만큼 buf의 값을 해싱해서 c에 저장해줌. (반복적으로 호출가능)
-        opt==0 ? MD5_Update(&hash_buf, buf,(unsigned long)i) : SHA1_Update(&hash_buf, buf,(unsigned long)i);		
+        opt==0 ? MD5_Update(&md5_buf, buf,(unsigned long)i) : SHA1_Update(&sha1_buf, buf,(unsigned long)i);		
         }
         // 받아온 해시 구조체를 -> md문자열에 바로저장.
-    opt==0 ? MD5_Final(md, &hash_buf) : SHA1_Final(md,&hash_buf);								
+    opt==0 ? MD5_Final(&(md[0]), &md5_buf) : SHA1_Final(&(md[0]),&sha1_buf);								
     char* hash_str = hash_to_string(md);
     return hash_str;
 }
@@ -2533,3 +2518,6 @@ char* replace (char* original, char* rep_before, char* rep_after, int cnt)
 	29d6c16dacf3a7617f97204978cfce2c00000000
 	hash size is 40
 */
+
+
+
