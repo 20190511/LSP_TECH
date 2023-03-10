@@ -20,15 +20,6 @@ int main(int argc, char* argv[])
     }
 
     strcpy(filename, argv[1]);
-    strcpy(hash, argv[argc-1]);
-    
-    if (strcmp(hash, "md5") != 0 && strcmp(hash, "sha1") != 0)
-    {
-        printf("usage hash is <md5 | sha1>\n");
-        printf("argc = %d\n", argc);
-        printf("argv[1] = %s\n", argv[argc-1]);
-        exit(1);
-    }
 
     for (int i = 0 ; i < argc ; i++)
     {
@@ -40,11 +31,16 @@ int main(int argc, char* argv[])
     }
     if (!flag)
     {
-        if (argc == 3)
+        if (argc == 2)
         {
-            printf("no option remove\n");
             if(file_size_check(filename))
-                printf("filename is %s\n", filename);
+                printf("filename is %s\n", filename);            
+            if (access(filename, F_OK) != 0)
+            {
+                printf("%s can't be existed\n", filename);
+                exit(1);
+            }
+            ssu_remove(filename, flag);
         }
         else
         {
@@ -78,7 +74,7 @@ int main(int argc, char* argv[])
     }
     else if (a_flag)
     {
-        if (argc != 4)      //remove 경로 -a 의 경우에는 항상 argc가 4(+1(해시) 5임.)
+        if (argc != 3)      //remove 경로 -a 의 경우에는 항상 argc가 4(+1(해시) 5임.)
         {
             main_help();
             exit(1);
@@ -96,7 +92,7 @@ int main(int argc, char* argv[])
     }
     else if (c_flag)
     {
-        if (argc != 3)
+        if (argc != 2)
         {
             main_help();
             exit(1);
