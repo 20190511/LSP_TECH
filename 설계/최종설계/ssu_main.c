@@ -40,7 +40,8 @@ int main(int argc, char* argv[]){
             char **prompt_argv = prompt_token(char_prompt, &prompt_argc, hash);
             if (prompt_argc <= 0 || prompt_argc > 6 || prompt_argv==NULL)
             {
-                main_help();
+                if (strcmp(char_prompt, "\n") != 0)
+                    main_help();
                 continue;
             }
 
@@ -87,9 +88,13 @@ int main(int argc, char* argv[]){
                     }
                 }
 
-                for (int i = 0 ; i < prompt_argc ; i++)
-                    free(prompt_argv[i]);
-                free(prompt_argv);
+                if (!status)
+                {
+                    for (int i = 0 ; i < prompt_argc ; i++)
+                        free(prompt_argv[i]);
+                    free(prompt_argv);
+                }
+
             }
 
             else if (strcmp(prompt_cmd, "ls") == 0  || strcmp(prompt_cmd, "vi") == 0  || 
@@ -109,36 +114,43 @@ int main(int argc, char* argv[]){
 
                 if (strcmp(prompt_cmd, "exit") == 0)
                 {
+                    for (int i = 0 ; i < prompt_argc ; i++)
+                        free(prompt_argv[i]);
+                    free(prompt_argv);
                     break;
                 }
+
+                if (strcmp(prompt_cmd, "help") == 0)
+                {
+                    main_help();
+                    for (int i = 0 ; i < prompt_argc ; i++)
+                        free(prompt_argv[i]);
+                    free(prompt_argv);
+                    continue;
+                }
+
                 if (pid == 0)
                 {
-                    if (strcmp(prompt_cmd, "ls") == 0)
+                    if (execv (prompt_argv[0], prompt_argv) == -1)
                     {
-                        if (execl("/usr/bin/ls", "ls", "-a", NULL) == -1)
-                        {
-                            printf("execve error\n");
-                            continue;
-                        }
-                    }
-
-                    if (strcmp(prompt_cmd, "vi") == 0  || strcmp(prompt_cmd, "vim") == 0)
-                    {
-                        if (execl("/usr/bin/vim", "vim", file_name, NULL) == -1)
-                        {
-                            printf("execve error\n");
-                            return 1;
-                        }
+                        printf("execve error\n");
+                        continue;
                     }
                 }
-                for (int i = 0 ; i < prompt_argc ; i++)
-                    free(prompt_argv[i]);
-                free(prompt_argv);
+                if (!status)
+                {
+                    for (int i = 0 ; i < prompt_argc ; i++)
+                        free(prompt_argv[i]);
+                    free(prompt_argv);
+                }
 
             }
             else
             {
                 main_help();
+                for (int i = 0 ; i < prompt_argc ; i++)
+                    free(prompt_argv[i]);
+                free(prompt_argv);
             }
             
         }
@@ -193,14 +205,23 @@ char** prompt_token(char* char_prompt, int* prompt_argc, char* hash)
         prompt_argvs[i] = NULL;
     token_ptr = strtok(temp, " ");    
     idx = 0;
+    int hash_plus_flag = 0;
     while(token_ptr != NULL)
     {
         prompt_argvs[idx] = (char*)malloc(sizeof(char) * MAXPATHLEN);
         if (strcmp(token_ptr, "add") == 0 || strcmp(token_ptr, "remove") == 0 || strcmp(token_ptr, "recover") == 0)
         {
+            if (strcmp(token_ptr, "remove") != 0)
+                hash_plus_flag = 1;
             char pwd[MAXPATHLEN] = {0,};
             getcwd(pwd, MAXPATHLEN);
             sprintf(prompt_argvs[idx++], "%s/ssu_%s", pwd, token_ptr);    //실행파일은 ssu_add.c, ssu_remove.c, ssu_recover.c 로함.
+        }
+        else if (strcmp(token_ptr, "ls") == 0 || strcmp(token_ptr, "vi") == 0 || strcmp(token_ptr, "vim") == 0)
+        {
+            char pwd[MAXPATHLEN] = {0,};
+            strcpy(pwd, "/usr/bin");
+            sprintf(prompt_argvs[idx++], "%s/%s", pwd, token_ptr);    //실행파일은 ssu_add.c, ssu_remove.c, ssu_recover.c 로함.
         }
         else
         {
@@ -214,9 +235,18 @@ char** prompt_token(char* char_prompt, int* prompt_argc, char* hash)
         }
         token_ptr = strtok(NULL, " ");
     }
-    prompt_argvs[idx] = (char*)calloc(5, sizeof(char));        //해시값 설정
-    strcpy(prompt_argvs[idx++], hash);
-    prompt_argvs[idx] = NULL;
+    if (hash_plus_flag)
+    {
+        prompt_argvs[idx] = (char*)calloc(5, sizeof(char));        //해시값 설정
+        strcpy(prompt_argvs[idx++], hash);
+        prompt_argvs[idx] = NULL;
+    }
+    else
+    {
+        free(prompt_argvs[idx]);
+        prompt_argvs[idx] = NULL;
+        *prompt_argc -= 1;
+    }
     
     return prompt_argvs;
 }
