@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <errno.h>
 
 //add . -d
 #define PROMPT  printf("20190511> ");
@@ -16,11 +17,39 @@ int access_check(char* file_name);
 int file_size_check (char file_names[]);
 
 int main(int argc, char* argv[]){
-    
+    int check_response = 1;
+    if (getuid() != 0)                                  // 03.11 sudo 권한으로 실행시켜야 root 권한으로 setuid 가능.
+    {
+        printf("If you didn't execute with 'sudo', you can not backup your file about root file\n"
+               "Usage: sudo %s\n"
+               "Do you want quit? (y/n)\n"
+               "If you picked 'n', the program execute with not root permission\n", argv[0]);
+        
+        while (check_response)
+        {
+            printf(">> ");
+            int response = fgetc(stdin);
+            switch(response)
+            {
+                case 'y':
+                case 'Y':
+                    exit(1);
+                    break;
+                case 'n':
+                case 'N':
+                    check_response = 0;
+                    break;
+                default:
+                    printf("Wrong Response! : Please type again\n");
+                    break;
+            }
+        }
+    }
                                                        // [MAXPATHLEN] 으로 할당해서 쓸 것.,
     char char_prompt [MAXPROMPTLEN];
     char hash[5] = {0,};
     int status;
+    //printf("your uid is %d\n", getuid());
     if (argc != 2 || ((strcmp(argv[1],"md5") != 0 && strcmp(argv[1],"sha1") != 0)))
     {
         printf("Usage: %s <md5 | sha1>\n",argv[0]);
@@ -32,8 +61,14 @@ int main(int argc, char* argv[]){
         strcpy(hash, argv[1]);
         while(1)
         {
+            fflush(stdin);
             PROMPT;
-            fgets(char_prompt, MAXPROMPTLEN,stdin);                    // 문자열 표준입력으로부터 입력받음.    -> fegts(char_prompt, MAXPROMPTLEN, stdin) 쓸 시 \n 도 딸려들어옴 
+            fgets(char_prompt, MAXPROMPTLEN, stdin);                    // 문자열 표준입력으로부터 입력받음.    -> fegts(char_prompt, MAXPROMPTLEN, stdin) 쓸 시 \n 도 딸려들어옴 
+            if (strcmp(char_prompt, "\n") == 0 && check_response == 0)
+            {
+                check_response = 1;
+                fgets(char_prompt, MAXPROMPTLEN, stdin);
+            }
             int prompt_argc = 1;                                        // 인자길이
 
             
@@ -65,9 +100,12 @@ int main(int argc, char* argv[]){
             // 인자 있는 명령어 | 없는 명령어 | OThers
             if (strcmp(prompt_cmd, "add") == 0 || strcmp(prompt_cmd, "remove") == 0 || strcmp(prompt_cmd, "recover") == 0 )
             {
+                                         
                 if (strcmp(prompt_cmd, "remove") != 0 && prompt_argc != 2)
                     file_size_check(prompt_argv[1]);
-                                    //일단 만약 실행파일 ex> ssu_add 가 없으면 컴파일부터.. 해주자..
+                                    
+                //일단 만약 실행파일 ex> ssu_add 가 없으면 컴파일부터.. 해주자.. 03.11
+                    // -> 실행파일 없으면 자동컴파일
                 char compile_file [1028] = {0,};
                 char compile_file_c [1030] = {0,};
                 sprintf(compile_file, "ssu_%s", prompt_cmd);
@@ -91,6 +129,7 @@ int main(int argc, char* argv[]){
                     }
                     else
                     {
+
                         if (execl("/usr/bin/gcc", "gcc", "-g", compile_file_c, "-o", compile_file, "-lcrypto", NULL) == -1)
                         {
                             printf("execve error\n");
@@ -120,21 +159,29 @@ int main(int argc, char* argv[]){
                         printf("execve error\n");
                         continue;
                     }
+
                 }
 
-                if (!status)
+                if (status)
                 {
                     for (int i = 0 ; i < prompt_argc ; i++)
                         free(prompt_argv[i]);
                     free(prompt_argv);
                 }
-
+                
             }
 
             else if (strcmp(prompt_cmd, "ls") == 0  || strcmp(prompt_cmd, "vi") == 0  || 
                     strcmp(prompt_cmd, "vim") == 0 || strcmp(prompt_cmd, "help") == 0 || strcmp(prompt_cmd, "exit") == 0)        
             {
-                
+                if (strcmp(prompt_cmd, "exit") == 0)
+                {
+                    for (int i = 0 ; i < prompt_argc ; i++)
+                        free(prompt_argv[i]);
+                    free(prompt_argv);
+                    break;
+                }
+
                 pid_t pid;
                 if ((pid = fork()) < 0)
                 {
@@ -144,14 +191,6 @@ int main(int argc, char* argv[]){
                 if (pid != 0)
                 {
                     wait(&status);
-                }
-
-                if (strcmp(prompt_cmd, "exit") == 0)
-                {
-                    for (int i = 0 ; i < prompt_argc ; i++)
-                        free(prompt_argv[i]);
-                    free(prompt_argv);
-                    break;
                 }
 
                 if (strcmp(prompt_cmd, "help") == 0)
@@ -171,7 +210,7 @@ int main(int argc, char* argv[]){
                         continue;
                     }
                 }
-                if (!status)
+                if (status)
                 {
                     for (int i = 0 ; i < prompt_argc ; i++)
                         free(prompt_argv[i]);
