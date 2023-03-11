@@ -64,7 +64,6 @@ int main(int argc, char* argv[])
     if (flag_d && flag_n)
     {
         ARG_ERR(6);
-        ssu_recover(filename, flag_d, flag_n, newname, hash_num);
         /*
         printf("option -d and -n \n");
         printf("filename is %s\n", filename);
