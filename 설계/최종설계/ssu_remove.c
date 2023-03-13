@@ -15,6 +15,11 @@ int main(int argc, char* argv[])
 
     if (argc < 2 || argc > 6)
     {
+        if (argc == 1)
+        {
+            printf("Usage : remove <FILENAME> [OPTION]\n");
+            exit(1);
+        }
         main_help();
         exit(1);
     }
