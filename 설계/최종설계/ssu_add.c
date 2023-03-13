@@ -8,13 +8,18 @@ extern char* optarg;
 
 int main(int argc, char* argv[])
 {
+    //printf("your uid is %d\n", (int)getuid());            //uid 확인완료
     //ssu_add("/home/junhyeong/go", 1, 0);
     int c;
     int flag = 0;
     char filename[MAXPATHLEN] = {0,};
     char hash[5] = {0,};
 
-
+    if (argc == 2)
+    {
+        printf("Usage: add <FILENAME> [OPTION]\n");
+        exit(1);
+    }
     strcpy(filename, argv[1]);
     strcpy(hash, argv[argc-1]);
     if (strcmp(hash, "md5") != 0 && strcmp(hash, "sha1") != 0)
@@ -39,16 +44,25 @@ int main(int argc, char* argv[])
         }
     }
 
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
+    
+    if(strstr(filename, BACKUP_PATH) != NULL)
+    {
+        printf("%s can't be backuped\n", filename);
+        exit(1);
+    }
+
     if (access(filename, R_OK) != 0)
     {
         if (access(filename, F_OK) != 0)
         {
-            printf("%s is not existed\n", filename);
+            printf("%s can't be backuped\n", filename);                //나중에 다 can't be beckuped 로 고칠 것.
             exit(1);
         }
         else
         {
-            printf("%s is can not access\n", filename);
+            printf("%s is can not access\n", filename);             //나중에 다 can't be beckuped 로 고칠 것.
             exit(1);
         }
     }
