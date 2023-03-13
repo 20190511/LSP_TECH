@@ -40,11 +40,6 @@ int main(int argc, char* argv[])
         {
             if(file_size_check(filename))
                 printf("filename is %s\n", filename);            
-            if (access(filename, F_OK) != 0)
-            {
-                printf("%s can't be existed\n", filename);
-                exit(1);
-            }
             ssu_remove(filename, flag);
         }
         else
@@ -87,11 +82,6 @@ int main(int argc, char* argv[])
 
         if(file_size_check(filename))
             printf("filename is %s\n", filename);            
-        if (access(filename, F_OK) != 0)
-        {
-            printf("%s can't be existed\n", filename);
-            exit(1);
-        }
         //printf("option a\n");
         printf("please wait .....\n");
     }
