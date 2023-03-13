@@ -90,6 +90,7 @@ char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
  * 
  *  2023-3-13 recover no -d 옵션 처리 디버깅
  *          - 백업파일에만 존재하는 파일에대해 동작할 때 check 함수 내부에서 d옵션을 걸러주지 못하던 오류 수정
+ *          - remove 경로에만 존재하는 파일 삭제.
  */
 
 
@@ -221,7 +222,8 @@ int ssu_add (char* file_name, int flag, int f_opt);
 // 2. remove 계열 함수.
 void ssu_remove (char* file_name, int a_flag);                                           // ssu_recover_default() 재탕
 void ssu_remove_all();                                       // scandir 사용.
-
+void scandir_makefile_for_remove(Flist* flist, char *parent_folder);
+Flist* check_backup_file_for_remove(char* file_name, int flag_a);
 
 // 3. recover 계열 함수.
 /**
@@ -259,7 +261,8 @@ void main_help();
 #ifdef DEBUG
 int main(void)
 {
-    ssu_recover("/home/junhyeong/test2/test3", 0, 0, NULL, 0);
+
+    ssu_remove("/home/junhyeong/test1",1);
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
     //ssu_recover("/home/junhyeong/go2", 1, 1, "good", 0);
     //get_actualpath();
@@ -589,17 +592,34 @@ void ssu_remove_all()
 void ssu_remove (char* file_name, int a_flag)
 {
     Filenode* newfile = new_filenodes(file_name, 0,0);
+    int only_backup_path_flag = 0;
+    Flist* only_backup_path;
     if (newfile == NULL)
     {
-        printf("%s is not existed or can't be accessed\n", file_name);
-        return;
+        only_backup_path = check_backup_file_for_remove(file_name, a_flag);
+        if (only_backup_path == NULL)
+        {
+            printf("%s is not existed or can't be accessed\n", file_name);
+            return;
+        }
+        else
+        {
+            only_backup_path_flag = 1;
+        }
     }
     FRlist* remove_file;
-
+    Flist* flist;
     if (a_flag)
     {
-        remove_file = ssu_recover_default(newfile->path_name, 1, 0);
-        Flist* flist = remove_file->flist;
+        if (only_backup_path_flag)
+        {
+            flist = only_backup_path;
+        }
+        else
+        {
+            remove_file = ssu_recover_default(newfile->path_name, 1, 0);
+            flist = remove_file->flist;
+        }
         
         
         for (int i = 0 ; i < flist->file_cnt ; i++)
@@ -626,19 +646,26 @@ void ssu_remove (char* file_name, int a_flag)
     }
     else
     {
-        if (S_ISDIR(newfile->file_stat.st_mode))
+        if (!only_backup_path_flag)
         {
-            printf("\"%s\" is a directory file\n", newfile->path_name);
-        }
-        remove_file = ssu_recover_default(newfile->path_name, 0, 0);
+            if (S_ISDIR(newfile->file_stat.st_mode))
+            {
+                printf("\"%s\" is a directory file\n", newfile->path_name);
+            }
+            remove_file = ssu_recover_default(newfile->path_name, 0, 0);
 
-        if(remove_file == NULL)
-        {
-            printf("%s Open Error\n", file_name);
-            free(newfile);
-            return;
+            if(remove_file == NULL)
+            {
+                printf("%s Open Error\n", file_name);
+                free(newfile);
+                return;
+            }
+            flist = remove_file->flist;
         }
-        Flist* flist = remove_file->flist;
+        else
+        {
+            flist = only_backup_path;
+        }
         if (flist->file_cnt_table[0] == 1)
         {
             printf("\"%s\" backup file removed\n", flist->file_array[0]->path_name);
@@ -671,8 +698,15 @@ void ssu_remove (char* file_name, int a_flag)
             getnum--;
             if(getnum == -1)                //exit() 들어가는 자리
             {
-                free_frlist(remove_file);
-                free(newfile);
+                if (only_backup_path_flag)
+                {
+                    free_flist(flist);
+                }
+                else
+                {
+                    free(newfile);
+                    free_frlist(remove_file);
+                }
                 return;
             }
             else
@@ -687,8 +721,15 @@ void ssu_remove (char* file_name, int a_flag)
         }
     }
 
-    free(newfile);
-    free_frlist(remove_file);
+    if (only_backup_path_flag)
+    {
+        free_flist(flist);
+    }
+    else
+    {
+        free(newfile);
+        free_frlist(remove_file);
+    }
 }
 
 
@@ -2039,7 +2080,7 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
     char file_size_check_str[MAXPATHLEN*2] = {0,};      //03.10 파일 사이즈 체크전용 문자열
 
 
-    if (access(newfile->path_name, R_OK) != 0)          //없거나 접근 불가능할 때,
+    if (access(newfile->path_name, R_OK) != 0)          //없거나 접근 불가능할 때, 
     {
         if (access(newfile->path_name, F_OK) != 0)
         {
@@ -2571,6 +2612,151 @@ char* replace (char* original, char* rep_before, char* rep_after, int cnt)
 }
 
 
+
+
+Flist* check_backup_file_for_remove(char* file_name, int flag_a)
+{
+    // 상대적인 백업폴더경로.
+    // 파일이름.
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
+    
+    Flist* flist = new_flist();
+    char original_path [MAXPATHLEN*2] = {0,};                       
+    char backup_path [MAXPATHLEN] = {0, };
+    char only_file [MAXPATHLEN] = {0, };
+    char parent_folder [MAXPATHLEN] = {0, };
+    char pwd[MAXPATHLEN] = {0,};
+    strcpy(original_path, file_name);
+    getcwd(pwd, MAXPATHLEN);
+
+    
+    if(original_path[0] != '/')
+        sprintf(original_path, "%s/%s", pwd, file_name);
+    
+    if(strstr(original_path, ACTUAL_PATH) == NULL)
+    {
+        return NULL;
+    }
+    else
+    {
+        char* back_token = original_path + strlen(ACTUAL_PATH);
+        sprintf(backup_path,"%s%s", BACKUP_PATH, back_token);
+        
+        strcpy(parent_folder, backup_path);
+        char* file_name_ptr = strrchr(parent_folder, '/');
+        if(file_name_ptr != NULL)
+            strcpy(only_file, file_name_ptr+1);
+        *file_name_ptr = '\0';
+    }
+    
+    LEGTH_ERR(original_path, 0);                                       //03.10 original path 파일 길이 제한
+
+    int checks = 0;
+    int directory = 0;
+    int regular = 0;
+
+
+    struct dirent** sub_dir;
+    struct stat statbuf;
+    int file_cnt;
+    char append_file [MAXPATHLEN*2] = {0,};
+    if ((file_cnt = scandir(parent_folder, &sub_dir, NULL, alphasort)) < 0)
+    {
+        return NULL;
+    }
+    for (int i = 0 ; i < file_cnt ; i++)
+    {
+        if (strstr(sub_dir[i]->d_name, only_file) != NULL)
+        {
+            if (strcmp(sub_dir[i]->d_name, ".") == 0 || strcmp(sub_dir[i]->d_name, "..")== 0)
+            {
+                free(sub_dir[i]);
+                continue;
+            }
+            checks = 1;
+            
+            sprintf(append_file, "%s/%s", parent_folder, sub_dir[i]->d_name);
+            LEGTH_ERR(append_file, 0);                                              //03.10 append_file 파일 길이 제한
+            stat(append_file, &statbuf);
+
+            
+            if (S_ISDIR(statbuf.st_mode))
+            {
+                if (!flag_a)
+                {
+                    printf("\'%s\' is a directory file\n", append_file);
+                    free(sub_dir[i]);
+                    continue;
+                }
+                directory=1;
+                append(flist, append_file, 1, 0);
+            }
+
+            if(S_ISREG(statbuf.st_mode))
+            {
+                regular=1;
+                append(flist, append_file, 1, 0);
+            }
+        }
+        free(sub_dir[i]);
+    }
+    free(sub_dir);
+
+
+    if (directory)  //재귀적으로 파일 삭제.
+    {
+        scandir_makefile_for_remove(flist, backup_path);
+        //****
+    }
+    return flist;
+}
+
+
+
+void scandir_makefile_for_remove(Flist* flist, char *parent_folder)
+{
+    char backups[MAXFILELEN] = {0,};
+    sprintf(backups, "%s/", parent_folder);
+    
+    char* backups_tok = backups+ strlen(backups);
+
+    struct dirent** sub_dir;
+    struct stat statbuf;
+    int file_cnt;
+
+    if ((file_cnt = scandir(parent_folder, &sub_dir, NULL, alphasort)) < 0)
+    {
+        return;
+    }
+
+    for (int i = 0 ; i < file_cnt ; i++)
+    {
+        if(strcmp(sub_dir[i]->d_name, ".")==0 || strcmp(sub_dir[i]->d_name, "..")==0)
+        {
+            free(sub_dir[i]);
+            continue;
+        }    
+        
+        strcpy(backups_tok, sub_dir[i]->d_name);
+
+        stat(backups, &statbuf);
+
+        if (S_ISDIR(statbuf.st_mode))
+        {
+            append(flist, backups, 1, 0);
+            scandir_makefile_for_remove(flist, backups);
+        }
+
+        if(S_ISREG(statbuf.st_mode))
+        {
+            append(flist, backups, 1, 0);
+        }
+        
+        free(sub_dir[i]);
+    }
+    free(sub_dir);
+}
 /**
  * junhyeong@DESKTOP-UPFPK8Q:~/go2$ ./hash_example diff.c 1			// 1: sha1
 	83eba35f13c8f33a7bd40e6f3194bab14091a461
