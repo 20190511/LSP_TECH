@@ -8,6 +8,7 @@
 #include <openssl/macros.h>
 #include <openssl/sha.h>            /*현재 home에 설치되어있음 */
 #include <openssl/md5.h>
+#include <openssl/evp.h>
 
 #include <string.h>
 #include <errno.h>
@@ -33,8 +34,6 @@
     printf("%s string length is %ld, It is over max limit length(%d)\n", _STR,strlen(_STR) ,MAXPATHLEN);\
     return _RETURN_TYPE;\
 }
-
-
 
 char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
 char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
@@ -82,6 +81,15 @@ char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
  * 
  * 
  *  ++ add : 연결리스트 next 디버깅 오류 수정 상태가 별로 안좋음. (백업은 되나, 파일이 )
+ *              
+ *  2023-3-10~12 디버깅 및 보고서화
+ *           : openssl 중 openssl/anv.h 에 포함된 init 함수들을 사용하면 더 편함
+ *           : ssu_recover.c 디버깅
+ *           : 보고서 작성중...
+ * 
+ * 
+ *  2023-3-13 recover no -d 옵션 처리 디버깅
+ *          - 백업파일에만 존재하는 파일에대해 동작할 때 check 함수 내부에서 d옵션을 걸러주지 못하던 오류 수정
  */
 
 
@@ -236,7 +244,7 @@ int modify_inversepath (Filenode* file_name, char* new_name, int flag_d);       
 FRlist* ssu_recover_default (char* file_name, int d_flag, int f_opt);                           // d_flag 설정 여부 확인
 void print_time_and_byte (Filenode* node);                                                  // 같은 디렉토리에 대한 230227172413 15bytes 등 출력.
 void append_samefile (Flist* flist, char* original_file_name, int f_opt);                              // origin path 에 있는 같은 이름의 파일 백업 파일 긁어오기.
-int check_backup_file(char* file_name);                                                     //상대적인 경로에 파일이 있는 경우 만들어줌
+int check_backup_file(char* file_name, int flag_d);                                              //상대적인 경로에 파일이 있는 경우 만들어줌
 void make_file_name(char* file_name);
 void scandir_makefile(char *parent_folder, char* original_path);
 
@@ -251,6 +259,7 @@ void main_help();
 #ifdef DEBUG
 int main(void)
 {
+    ssu_recover("/home/junhyeong/test2/test3", 0, 0, NULL, 0);
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
     //ssu_recover("/home/junhyeong/go2", 1, 1, "good", 0);
     //get_actualpath();
@@ -400,7 +409,7 @@ void scandir_makefile(char *parent_folder, char* original_path)
  * : 체크해보고 원래 경로에는 없지만 백업 파일에 있는 경우 원래경로에 파일 추가. 
  * 
 */
-int check_backup_file(char* file_name)
+int check_backup_file(char* file_name, int flag_d)
 {
     // 상대적인 백업폴더경로.
     // 파일이름.
@@ -463,6 +472,12 @@ int check_backup_file(char* file_name)
             
             if (S_ISDIR(statbuf.st_mode))
             {
+                if (!flag_d)
+                {
+                    printf("\'%s\' is a directory file\n", append_file);
+                    free(sub_dir[i]);
+                    continue;
+                }
                 directory=1;
                 make_directory(original_path);
                 mkdir(original_path, DIRECTRY_ACCESS);
@@ -785,7 +800,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
     if(newnode == NULL)
     {
         //체킹함수 제작
-        int checks = check_backup_file(file_name);
+        int checks = check_backup_file(file_name, flag_d);
         if (checks)
             newnode = new_filenodes(file_name, 0, f_opt);
         if (newnode == NULL)
@@ -1666,7 +1681,7 @@ Flist* backup_search(char* file_name, int f_opt, int all)             // 해시 
             free(rootnode);
             return flist;
         }
-        else   // 디렉토리가 아니라 그냥 파일인경우.
+        else   
         {
             char* dir_name = flist->dir_array[0]->path_name;
             char tmp_name[MAXPATHLEN] = {0,};
@@ -2143,6 +2158,10 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         free(newfile);
         return NULL;
     }    
+
+    if (S_ISDIR(newfile->file_stat.st_mode))                                //해당 파일이 디렉토리면 해시를 구하지않음.
+        return newfile;
+
     FILE *fp_hash = fopen(newfile->path_name, "r");
     char* hash_ptr = do_hashing(fp_hash, f_opt);
     if (hash_ptr == NULL)
@@ -2355,7 +2374,7 @@ int add_backup(char* backup_path, char* file_name)
 /**
  * 해싱 함수 : 해당 파일 f 를 option 으로 해싱
  * return -> 해싱된 문자열.
-*/
+
 char* do_hashing(FILE *f, int opt)							//option 0 :md5, 1: sha1
 {
     SHA_CTX sha1_buf;
@@ -2376,6 +2395,49 @@ char* do_hashing(FILE *f, int opt)							//option 0 :md5, 1: sha1
         }
         // 받아온 해시 구조체를 -> md문자열에 바로저장.
     opt==0 ? MD5_Final(&(md[0]), &md5_buf) : SHA1_Final(&(md[0]),&sha1_buf);								
+    char* hash_str = hash_to_string(md);
+    return hash_str;
+}
+*/
+
+/** https://www.openssl.org/docs/man1.1.1/man3/EVP_MD_CTX_new.html :참고*/
+char* do_hashing (FILE *f, int opt)							//option 0 :md5, 1: sha1
+{
+    unsigned char md[EVP_MAX_MD_SIZE];
+    unsigned char buf[BUFSIZE];
+    unsigned int md_len;
+    size_t read_cnt;
+    int fd=fileno(f);
+
+    const EVP_MD *hash_struct = EVP_get_digestbyname( opt==0 ? "md5" : "sha1");
+    if (hash_struct == NULL)
+    {
+        printf("Making Hashing Error!\n");
+        return NULL;
+    }
+
+    EVP_MD_CTX *mdctx  = EVP_MD_CTX_new();
+    if (hash_struct == NULL)
+    {
+        printf("Making Hashing Error!\n");
+        return NULL;
+    }
+
+    if (EVP_DigestInit_ex(mdctx , hash_struct, NULL) == 0) {
+        printf("Making Hashing Error!\n");
+        return NULL;
+    }
+    for (;;)
+    {
+        read_cnt = read(fd,buf,BUFSIZE);
+        if (read_cnt <= 0) break;
+        // 읽은 개수만큼 buf의 값을 해싱해서 c에 저장해줌. (반복적으로 호출가능)
+        EVP_DigestUpdate(mdctx, buf, read_cnt);	
+    }
+
+    EVP_DigestFinal_ex(mdctx, md, &md_len);
+    EVP_MD_CTX_free(mdctx);
+
     char* hash_str = hash_to_string(md);
     return hash_str;
 }
