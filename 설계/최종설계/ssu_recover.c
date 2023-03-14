@@ -24,6 +24,13 @@ int main(int argc, char* argv[])
     char newname [MAXPATHLEN] = {0,};
     char hash[5] = {0,};
 
+    if (argc == 2)
+    {
+        printf("Usage : recover <FILENAME> [OPTION]\n"
+               "    -d : recover directory recursive\n"
+               "    -n <NEWNAME> : recover file with new name\n");
+        exit(1);
+    }
     if (argc < 2 || argc > 6)
     {
         main_help();
