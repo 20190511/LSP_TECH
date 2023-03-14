@@ -258,11 +258,17 @@ void get_backuppath();          //get_backuppath() 를 구하면 자동으로 ge
 int file_size_check (char file_names[]);
 void main_help();
 
+/** 유지보수 함수 : */
+int scandir_filter (const struct dirent* entry);
+int basic_filter (const struct dirent* entry);
+int append_samefile2 (Flist* flist, char* file_path, int opt, int f_opt);
+char* scandir_filename;
+
 #ifdef DEBUG
 int main(void)
 {
-
-    ssu_remove("/home/junhyeong/test1",1);
+    ssu_remove("/home/junhyeong/test", 0);
+    //ssu_remove("/home/junhyeong/test1",1);
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
     //ssu_recover("/home/junhyeong/go2", 1, 1, "good", 0);
     //get_actualpath();
@@ -275,14 +281,14 @@ int main(void)
 void main_help()
 {
     printf("Usage:\n"
-            "  > add [FILENAME] [OPTION]\n"
+            "  > add <FILENAME> [OPTION]\n"
             "    -d : add directory recursive\n"
-            "  > recover [FILENAME] [OPTION]\n"
+            "  > recover <FILENAME> [OPTION]\n"
             "    -d : recover directory recursive\n"
-            "    -n [NEWNAME] : recover file with new name\n"
-            "  > remove [FILENAME] [OPTION]\n"
+            "    -n <NEWNAME> : recover file with new name\n"
+            "  > remove <FILENAME> [OPTION]\n"
             "    -c : remove all sub directory and files from backup directory\n"
-            "    -a [NEWNAME] : remove directory reculsive from backup directory  \n"
+            "    -a <NEWNAME> : remove directory reculsive from backup directory  \n"
             "  > ls\n"
             "  > vi\n"
             "  > vim\n"
@@ -453,7 +459,6 @@ int check_backup_file(char* file_name, int flag_d)
     int directory = 0;
     int regular = 0;
 
-
     struct dirent** sub_dir;
     struct stat statbuf;
     int file_cnt;
@@ -496,7 +501,7 @@ int check_backup_file(char* file_name, int flag_d)
         free(sub_dir[i]);
     }
     free(sub_dir);
-
+    
 
     if (directory)  //재귀적으로 다 살려내기.
     {
@@ -576,14 +581,14 @@ void ssu_remove_all()
             // 딕셔너리 삭제
             if (rmdir(bs->dir_array[i]->path_name) < 0)
             {
-                printf("%s can't be erased \n", bs->dir_array[i]->path_name);
-                printf("err string is %s\n", strerror(errno));
+                //printf("%s can't be erased \n", bs->dir_array[i]->path_name);
+                //printf("err string is %s\n", strerror(errno));
             }
         }
         free_flist(bs);
         bs = backup_search (BACKUP_PATH, 0, 1);
         del_cnt++;
-        printf("directory delete process : %d\n", del_cnt+1);
+        //printf("directory delete process : %d\n", del_cnt+1);
     }  
     free_flist(bs);
 }
@@ -599,7 +604,6 @@ void ssu_remove (char* file_name, int a_flag)
         only_backup_path = check_backup_file_for_remove(file_name, a_flag);
         if (only_backup_path == NULL)
         {
-            printf("%s is not existed or can't be accessed\n", file_name);
             return;
         }
         else
@@ -651,6 +655,8 @@ void ssu_remove (char* file_name, int a_flag)
             if (S_ISDIR(newfile->file_stat.st_mode))
             {
                 printf("\"%s\" is a directory file\n", newfile->path_name);
+                free(newfile);
+                return;
             }
             remove_file = ssu_recover_default(newfile->path_name, 0, 0);
 
@@ -1309,7 +1315,8 @@ int modify_inversepath (Filenode* node, char* new_name, int flag_d)
                 char token_string[MAXPATHLEN] = {0,};
                 strcpy(token_string, node->actual_path);
                 char* token_time = strrchr(token_string, '_');
-                *token_time = '\0';
+                if (token_time != NULL)
+                    *token_time = '\0';
                 if (strlen(newname) + strlen(token_string) > MAXPATHLEN)
                 {
                     printf("new_path_name is over MAXPATHLEN=%d\n", MAXPATHLEN);
@@ -2624,16 +2631,10 @@ Flist* check_backup_file_for_remove(char* file_name, int flag_a)
     Flist* flist = new_flist();
     char original_path [MAXPATHLEN*2] = {0,};                       
     char backup_path [MAXPATHLEN] = {0, };
-    char only_file [MAXPATHLEN] = {0, };
-    char parent_folder [MAXPATHLEN] = {0, };
-    char pwd[MAXPATHLEN] = {0,};
     strcpy(original_path, file_name);
-    getcwd(pwd, MAXPATHLEN);
 
-    
-    if(original_path[0] != '/')
-        sprintf(original_path, "%s/%s", pwd, file_name);
-    
+    if(file_name[0] != '/')
+        realpath(file_name, original_path);
     if(strstr(original_path, ACTUAL_PATH) == NULL)
     {
         return NULL;
@@ -2642,12 +2643,6 @@ Flist* check_backup_file_for_remove(char* file_name, int flag_a)
     {
         char* back_token = original_path + strlen(ACTUAL_PATH);
         sprintf(backup_path,"%s%s", BACKUP_PATH, back_token);
-        
-        strcpy(parent_folder, backup_path);
-        char* file_name_ptr = strrchr(parent_folder, '/');
-        if(file_name_ptr != NULL)
-            strcpy(only_file, file_name_ptr+1);
-        *file_name_ptr = '\0';
     }
     
     LEGTH_ERR(original_path, 0);                                       //03.10 original path 파일 길이 제한
@@ -2656,53 +2651,21 @@ Flist* check_backup_file_for_remove(char* file_name, int flag_a)
     int directory = 0;
     int regular = 0;
 
-
-    struct dirent** sub_dir;
-    struct stat statbuf;
-    int file_cnt;
-    char append_file [MAXPATHLEN*2] = {0,};
-    if ((file_cnt = scandir(parent_folder, &sub_dir, NULL, alphasort)) < 0)
+    int file_cnt = append_samefile2 (flist, backup_path, 1, 0);
+    if (file_cnt <= 0)
     {
         return NULL;
     }
-    for (int i = 0 ; i < file_cnt ; i++)
+
+    if (flist->dir_cnt > 0)
     {
-        if (strstr(sub_dir[i]->d_name, only_file) != NULL)
+        if (!flag_a)
         {
-            if (strcmp(sub_dir[i]->d_name, ".") == 0 || strcmp(sub_dir[i]->d_name, "..")== 0)
-            {
-                free(sub_dir[i]);
-                continue;
-            }
-            checks = 1;
-            
-            sprintf(append_file, "%s/%s", parent_folder, sub_dir[i]->d_name);
-            LEGTH_ERR(append_file, 0);                                              //03.10 append_file 파일 길이 제한
-            stat(append_file, &statbuf);
-
-            
-            if (S_ISDIR(statbuf.st_mode))
-            {
-                if (!flag_a)
-                {
-                    printf("\'%s\' is a directory file\n", append_file);
-                    free(sub_dir[i]);
-                    continue;
-                }
-                directory=1;
-                append(flist, append_file, 1, 0);
-            }
-
-            if(S_ISREG(statbuf.st_mode))
-            {
-                regular=1;
-                append(flist, append_file, 1, 0);
-            }
+            printf("\'%s\' is a directory file\n", flist->dir_array[0]->path_name);
+            return NULL;
         }
-        free(sub_dir[i]);
+        directory = 1;
     }
-    free(sub_dir);
-
 
     if (directory)  //재귀적으로 파일 삭제.
     {
@@ -2757,6 +2720,86 @@ void scandir_makefile_for_remove(Flist* flist, char *parent_folder)
     }
     free(sub_dir);
 }
+
+
+
+/** 아래 필터를 도입하여 만들어보았으나
+ * UUU 오류 등이 발생 중
+*/
+int scandir_filter (const struct dirent* entry)
+{
+    if (strlen(scandir_filename) == 0 || entry == NULL)
+        return 0;
+    if (strstr(entry->d_name, scandir_filename) != NULL)
+        return 1;
+    return 0;
+}
+
+
+// 적용해봤는데 안정성이 많이 떨어져서 사용불가
+int basic_filter (const struct dirent* entry)
+{
+    if (entry == NULL)
+        return 0;
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+        return 0;
+    else
+        return 1;
+    return 0;
+}
+
+
+// parent_path 는 절대경로만 받을 수 있음.
+int append_samefile2 (Flist* flist, char* file_path, int opt, int f_opt)
+{
+
+    char parent_path[MAXPATHLEN] = {0,};
+    char only_file_path [MAXFILELEN] = {0,};
+    strcpy(parent_path, file_path);
+    char *find_filename = strrchr(parent_path, '/');
+    if (find_filename == NULL)
+        return -1;
+    strcpy(only_file_path, find_filename+1);
+    *find_filename = '\0';
+
+    // 파일 접근 권한 확인 (일단 해당 경로에 파일이 존재하는지 확인)
+    if (access(parent_path, R_OK) != 0 )
+        return -1;
+
+    if (parent_path == NULL)
+        return -1;
+
+    scandir_filename = only_file_path;
+    struct dirent** sub_dir;
+    if (scandir(parent_path, &sub_dir, scandir_filter, alphasort) < 0)
+        return -1;
+
+    /*
+    char temp_path [MAXPATHLEN] = {0, };
+    strcpy(temp_path, parent_path);
+    char* char_cpr = temp_path + strlen(parent_path);
+    *char_cpr++ = '/';
+    */
+
+    *find_filename++ = '/';
+
+    int scan_cnt = 0;
+    for (scan_cnt = 0 ;; scan_cnt++)
+    {
+        if (sub_dir == NULL || sub_dir[scan_cnt] == NULL)
+            break;
+        strcpy(find_filename, sub_dir[scan_cnt]->d_name);
+
+        if (access(parent_path, F_OK) != 0)
+            break;
+        append(flist, parent_path, opt, f_opt);
+        free(sub_dir[scan_cnt]);
+    }
+    
+    scandir_filename = NULL;
+    return scan_cnt;
+}
+
 /**
  * junhyeong@DESKTOP-UPFPK8Q:~/go2$ ./hash_example diff.c 1			// 1: sha1
 	83eba35f13c8f33a7bd40e6f3194bab14091a461
