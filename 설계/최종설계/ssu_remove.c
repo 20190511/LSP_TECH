@@ -71,7 +71,9 @@ int main(int argc, char* argv[])
 
     if (a_flag && c_flag)
     {
-        main_help();
+        printf("Usage : remove <FILENAME> [OPTION]\n"
+                   "    -c : remove all sub directory and files from backup directory\n"
+                   "    -a <NEWNAME> : remove directory reculsive from backup directory  \n");
         exit(1);
     }
     else if (a_flag)
