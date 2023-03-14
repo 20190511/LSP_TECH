@@ -17,7 +17,9 @@ int main(int argc, char* argv[])
     {
         if (argc == 1)
         {
-            printf("Usage : remove <FILENAME> [OPTION]\n");
+            printf("Usage : remove <FILENAME> [OPTION]\n"
+                   "    -c : remove all sub directory and files from backup directory\n"
+                   "    -a <NEWNAME> : remove directory reculsive from backup directory  \n");
             exit(1);
         }
         main_help();
