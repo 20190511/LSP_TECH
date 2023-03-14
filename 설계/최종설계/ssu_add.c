@@ -4,8 +4,8 @@
 #include <string.h>
 #include "ssu_exec.h"
 
+//test
 extern char* optarg;
-
 int main(int argc, char* argv[])
 {
     //printf("your uid is %d\n", (int)getuid());            //uid 확인완료
