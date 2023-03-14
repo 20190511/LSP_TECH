@@ -17,7 +17,8 @@ int main(int argc, char* argv[])
 
     if (argc == 2)
     {
-        printf("Usage: add <FILENAME> [OPTION]\n");
+        printf("Usage: add <FILENAME> [OPTION]\n"
+               "    -d : add directory recursive\n");
         exit(1);
     }
     strcpy(filename, argv[1]);
