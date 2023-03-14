@@ -8,7 +8,9 @@
 {\
     if (argc != _CNT)\
     {\
-        main_help();\
+        printf("Usage : recover <FILENAME> [OPTION]\n"\
+               "    -d : recover directory recursive\n"\
+               "    -n <NEWNAME> : recover file with new name\n");\
         exit(1);\
     }\
 }
