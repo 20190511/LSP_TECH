@@ -38,7 +38,7 @@ int main(int argc, char* argv[])
     {
         if (argc == 2)
         {
-            if(file_size_check(filename))
+            if(!file_size_check(filename))
                 printf("filename is %s\n", filename);            
             ssu_remove(filename, flag);
         }
