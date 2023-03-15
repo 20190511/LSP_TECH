@@ -275,7 +275,7 @@ void main_help_recover();
 #ifdef DEBUG
 int main(void)
 {
-    ssu_remove("/home/junhyeong/test", 0);
+    //ssu_remove("/home/junhyeong/test", 0);
     //ssu_remove("/home/junhyeong/test1",1);
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
     //ssu_recover("/home/junhyeong/go2", 1, 1, "good", 0);
@@ -335,13 +335,22 @@ int file_size_check (char file_names[])
         realpath(file_name, file_name);
     if (strstr(file_name, "/home") == NULL)
     {
-        printf("%s is over from /home directory\n", file_name);
+        //printf("%s is over from /home directory\n", file_name);
         return 0;
     }
 
     if (strlen(file_name) >= MAXPATHLEN)
     {
         printf("%s size is %ld. It is over MAX file legnth(%d)\n", file_name,strlen(file_name), MAXPATHLEN);
+        return 0;
+    }
+
+
+    char *onlyfile = strrchr(file_name, '/');
+    onlyfile++;
+    if (strlen(onlyfile) >= MAXFILELEN)
+    {
+        printf("%s size is %ld. It is over MAX file legnth(%d)\n", onlyfile,strlen(file_name), MAXFILELEN);
         return 0;
     }
 
@@ -572,7 +581,7 @@ void ssu_remove_all()
     Flist* bs = backup_search (BACKUP_PATH, 0, 1);
     int sub_total = 0;
     int del_cnt = 0;
-    if (bs->file_cnt == 0)                                  //백업 파일 0개이면 프롬포트 출력
+    if (bs->file_cnt == 0 && bs->dir_cnt == 1)                                  //백업 파일 0개이면 프롬포트 출력
     {  
         printf("no file(s) in the backup\n");
         free_flist(bs);
@@ -634,6 +643,7 @@ void ssu_remove (char* file_name, int a_flag)
         only_backup_path = check_backup_file_for_remove(file_name, a_flag);
         if (only_backup_path == NULL)
         {
+            main_help_remove();
             return;
         }
         else
@@ -717,12 +727,15 @@ void ssu_remove (char* file_name, int a_flag)
 
             for (int ni = 0 ; ni < flist->file_cnt_table[0] ; ni++)
             {
+                printf("%d. ", ni+1);
+                print_time_and_byte(tmp_node);
+                /*
                 printf("%d. %-30s%ldbytes\n", 
-                        ni+1, tmp_node->back_up_time, tmp_node->file_stat.st_size);
+                        ni+1, tmp_node->back_up_time, tmp_node->file_stat.st_size);*/
                 tmp_node = tmp_node->next;
             }
 
-            printf("Choose file to recover\n");
+            printf("Choose file to remove\n");
             int getnum = 5000000;
             while (getnum < 0 || getnum > flist->file_cnt_table[0])
             {
@@ -881,7 +894,10 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
         if (checks)
             newnode = new_filenodes(file_name, 0, f_opt);
         if (newnode == NULL)
+        {
+            main_help_recover();
             return 0;
+        }
     }
 
     if (flg_d)
@@ -969,8 +985,11 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
 
                         for (int ni = 0 ; ni < flist->file_cnt_table[i] ; ni++)
                         {
+                            printf("%d. ", ni+1);
+                            print_time_and_byte(tmp_node);
+                            /*
                             printf("%d. %-30s%ldbytes\n", 
-                                    ni+1, tmp_node->back_up_time, tmp_node->file_stat.st_size);
+                                    ni+1, tmp_node->back_up_time, tmp_node->file_stat.st_size);*/
                             tmp_node = tmp_node->next;
                         }
 
@@ -1098,8 +1117,11 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
 
                 for (int ni = 0 ; ni < flist->file_cnt_table[0] ; ni++)
                 {
+                    printf("%d. ", ni+1);
+                    print_time_and_byte(tmp_node);
+                    /*
                     printf("%d. %-30s%ldbytes\n", 
-                            ni+1, tmp_node->back_up_time, tmp_node->file_stat.st_size);
+                            ni+1, tmp_node->back_up_time, tmp_node->file_stat.st_size);*/
                     tmp_node = tmp_node->next;
                 }
 
@@ -1392,7 +1414,23 @@ int modify_inversepath (Filenode* node, char* new_name, int flag_d)
  */
 void print_time_and_byte (Filenode* node)
 {
-    printf("%s        %ldbytes\n",node->back_up_time, node->file_stat.st_size);
+    char thousand_comma [15] = {0,};
+    sprintf(thousand_comma, "%ld", node->file_stat.st_size);
+    int len_size = strlen(thousand_comma);
+    int start = len_size - 3;
+
+    for (int i = start ; i >= 0 ; i -= 3)
+    {
+        if (i==0)
+            break;
+        char* string_ptr = thousand_comma + i;
+        char tmp_string[20] = {0,};
+        sprintf(tmp_string, ",%s", string_ptr);
+        strcpy(string_ptr, tmp_string);
+    }
+
+    
+    printf("%-30s%sbytes\n",node->back_up_time, thousand_comma);
 }
 
 
@@ -1401,7 +1439,7 @@ int ssu_add (char* file_name, int flag, int f_opt)
     Filenode *tmp_node = new_filenodes(file_name, 0, f_opt);
     if (tmp_node == NULL)
     {
-        printf("Error!\n");
+        printf("%s can't be backuped\n", file_name);
         return 0;
     }
     char original_path[MAXPATHLEN] = {0,};
@@ -2761,7 +2799,18 @@ int scandir_filter (const struct dirent* entry)
     if (strlen(scandir_filename) == 0 || entry == NULL)
         return 0;
     if (strstr(entry->d_name, scandir_filename) != NULL)
-        return 1;
+    {
+        char tmp_check[MAXFILELEN] = {0,};
+        strcpy(tmp_check, entry->d_name);
+        char *seper = strrchr(tmp_check, '_');
+        if (seper != NULL)
+            *seper = '\0';
+        
+        if (strcmp(tmp_check, scandir_filename) == 0)
+            return 1;
+        else
+            return 0;
+    }
     return 0;
 }
 
