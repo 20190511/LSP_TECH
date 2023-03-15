@@ -61,6 +61,7 @@ int main(int argc, char* argv[])
                 break;
             case '?':
                 main_help_recover();
+                exit(1);
                 break;
         }
     }
