@@ -264,6 +264,14 @@ int basic_filter (const struct dirent* entry);
 int append_samefile2 (Flist* flist, char* file_path, int opt, int f_opt);
 char* scandir_filename;
 
+
+
+/** help 함수 추가 03.15*/
+void main_help_add();
+void main_help_remove();
+void main_help_recover();
+
+
 #ifdef DEBUG
 int main(void)
 {
@@ -278,17 +286,39 @@ int main(void)
 	exit(0);
 }
 #endif
+
+void main_help_add()
+{
+    printf("Usage: add <FILENAME> [OPTION]\n"
+            "    -d : add directory recursive\n");
+}
+void main_help_remove()
+{
+    printf("Usage: remove <FILENAME> [OPTION]\n"
+            "    -c : remove all file(reculsive)\n"
+            "    -a <NEWNAME> : clear backup directory\n");
+}
+void main_help_recover()
+{
+    printf("Usage: recover <FILENAME> [OPTION]\n"
+            "    -d : recover directory recursive\n"
+            "    -n <NEWNAME> : recover file with new name\n");
+}
+
+
+
+
 void main_help()
 {
     printf("Usage:\n"
             "  > add <FILENAME> [OPTION]\n"
             "    -d : add directory recursive\n"
+            "  > remove <FILENAME> [OPTION]\n"
+            "    -c : remove all file(reculsive)\n"
+            "    -a <NEWNAME> : clear backup directory\n"
             "  > recover <FILENAME> [OPTION]\n"
             "    -d : recover directory recursive\n"
             "    -n <NEWNAME> : recover file with new name\n"
-            "  > remove <FILENAME> [OPTION]\n"
-            "    -c : remove all sub directory and files from backup directory\n"
-            "    -a <NEWNAME> : remove directory reculsive from backup directory  \n"
             "  > ls\n"
             "  > vi\n"
             "  > vim\n"
