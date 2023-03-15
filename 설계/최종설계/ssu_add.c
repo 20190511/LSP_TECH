@@ -17,8 +17,7 @@ int main(int argc, char* argv[])
 
     if (argc == 2)
     {
-        printf("Usage: add <FILENAME> [OPTION]\n"
-               "    -d : add directory recursive\n");
+        main_help_add();
         exit(1);
     }
     strcpy(filename, argv[1]);
@@ -38,7 +37,8 @@ int main(int argc, char* argv[])
                 flag_d = 1;
                 break;
             case '?':
-                main_help();
+                main_help_add();
+                exit(1);
                 break;
 
             
@@ -73,7 +73,7 @@ int main(int argc, char* argv[])
     {
         if (argc != 4)
         {
-            main_help();
+            main_help_add();
             exit(1);
         }
         printf("please wait .....\n");
@@ -87,7 +87,7 @@ int main(int argc, char* argv[])
     {
         if (argc != 3)
         {
-            main_help();
+            main_help_add();
             exit(1);
         }
         /*
