@@ -40,6 +40,7 @@ int main(int argc, char* argv[])
     if (strcmp(hash, "md5") != 0 && strcmp(hash, "sha1") != 0)
     {
         printf("usage hash is <md5 | sha1>\n");
+        main_help_recover();
         exit(1);
     }
 
@@ -55,8 +56,16 @@ int main(int argc, char* argv[])
             case 'n':
                 flag_n = 1;
                 strcpy(newname, optarg);
-                if(!file_size_check(newname))
+                if (strlen(BACKUP_PATH) == 0)
+                    get_backuppath();
+                if(!file_size_check(newname) || strstr(newname, BACKUP_PATH) != NULL)
+                {
+                    printf("%s can't be backuped\n", newname);
                     exit(1);
+                }
+
+
+
 
                 break;
             case '?':
@@ -108,6 +117,11 @@ int main(int argc, char* argv[])
         printf("hash is %s\n", hash);
         */
     }
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
+    
+    if (access(BACKUP_PATH, R_OK) != 0)
+        mkdir (BACKUP_PATH, 0777);
     ssu_recover(filename, flag_d, flag_n, newname, hash_num);
     exit(0);
 }
