@@ -15,6 +15,7 @@ void main_help();
 char** prompt_token(char* char_prompt, int* prompt_argc, char* hash);
 int access_check(char* file_name);
 int file_size_check (char file_names[]);
+void clear_func();
 
 int main(int argc, char* argv[]){
     int check_response = 1;
@@ -166,13 +167,16 @@ int main(int argc, char* argv[]){
             }
 
             else if (strcmp(prompt_cmd, "ls") == 0  || strcmp(prompt_cmd, "vi") == 0  || 
-                    strcmp(prompt_cmd, "vim") == 0 || strcmp(prompt_cmd, "help") == 0 || strcmp(prompt_cmd, "exit") == 0)        
+                    strcmp(prompt_cmd, "vim") == 0 || strcmp(prompt_cmd, "exit") == 0)        
             {
                 if (strcmp(prompt_cmd, "exit") == 0)
                 {
                     for (int i = 0 ; i < prompt_argc ; i++)
                         free(prompt_argv[i]);
                     free(prompt_argv);
+
+                    //exit 하면 실행파일 싹 다 지워버리기 03.15 (새로운 컴파일을 위해 귀찮아서 제작.)
+                    clear_func();
                     break;
                 }
 
@@ -187,15 +191,6 @@ int main(int argc, char* argv[]){
                     wait(&status);
                 }
 
-                if (strcmp(prompt_cmd, "help") == 0)
-                {
-                    main_help();
-                    for (int i = 0 ; i < prompt_argc ; i++)
-                        free(prompt_argv[i]);
-                    free(prompt_argv);
-                    continue;
-                }
-
                 if (pid == 0)
                 {
                     if (execv (prompt_argv[0], prompt_argv) == -1)
@@ -208,10 +203,55 @@ int main(int argc, char* argv[]){
             }
             else
             {
-                main_help();
-                for (int i = 0 ; i < prompt_argc ; i++)
-                    free(prompt_argv[i]);
-                free(prompt_argv);
+                strcpy(prompt_argv[0], "ssu_help");
+                realpath(prompt_argv[0],prompt_argv[0]);
+                char help_c[MAXPATHLEN] = {0,};
+                sprintf(help_c,"%s.c", prompt_argv[0]);
+                pid_t pid1, pid2;
+                if (access(prompt_argv[0], F_OK) != 0)
+                {
+                    pid_t pid1;
+                    int compile_status;
+                    if ((pid1 = fork()) < 0)
+                    {
+                        fprintf(stderr, "Fork Error : %s\n", prompt_cmd);
+                        continue;
+                    }
+
+                    if (pid1 != 0)
+                    {
+                        wait(&compile_status);
+                    }
+                    else
+                    {
+
+                        if (execl("/usr/bin/gcc", "gcc", "-g", help_c, "-o", prompt_argv[0], NULL) == -1)
+                        {
+                            printf("execve error\n");
+                            continue;
+                        }
+                    }
+                }
+
+
+                if ((pid2 = fork()) < 0)
+                {
+                    fprintf(stderr, "Fork Error : %s\n", prompt_cmd);
+                    continue;
+                }
+                if (pid2 != 0)
+                {
+                    wait(&status);
+                }
+                if (pid2 == 0)
+                {
+
+                    if (execv (prompt_argv[0], prompt_argv) == -1)
+                    {
+                        printf("execve error\n");
+                        continue;
+                    }
+                }
             }
             
         }
@@ -315,14 +355,14 @@ char** prompt_token(char* char_prompt, int* prompt_argc, char* hash)
 void main_help()
 {
     printf("Usage:\n"
-            "  > add [FILENAME] [OPTION]\n"
+            "  > add <FILENAME> [OPTION]\n"
             "    -d : add directory recursive\n"
-            "  > recover [FILENAME] [OPTION]\n"
+            "  > remove <FILENAME> [OPTION]\n"
+            "    -c : remove all file(reculsive)\n"
+            "    -a <NEWNAME> : clear backup directory\n"
+            "  > recover <FILENAME> [OPTION]\n"
             "    -d : recover directory recursive\n"
-            "    -n [NEWNAME] : recover file with new name\n"
-            "  > remove [FILENAME] [OPTION]\n"
-            "    -c : recover directory recursive\n"
-            "    -a [NEWNAME] : recover file with new name\n"
+            "    -n <NEWNAME> : recover file with new name\n"
             "  > ls\n"
             "  > vi\n"
             "  > vim\n"
@@ -352,4 +392,25 @@ int file_size_check (char file_names[])
 
     strcpy(file_names, file_name);
     return 1;
+}
+
+
+
+void clear_func()
+{
+    char clean_file [4][MAXPATHLEN] = {0,};
+    strcpy(clean_file[0],"ssu_add");
+    strcpy(clean_file[1],"ssu_recover");
+    strcpy(clean_file[2],"ssu_remove");
+    strcpy(clean_file[3],"ssu_help");
+
+    for (int i = 0 ; i < 4 ; i++)
+    {
+        realpath(clean_file[i], clean_file[i]);
+
+        if (access(clean_file[i], F_OK) == 0)
+        {
+            remove(clean_file[i]);
+        }
+    }
 }
