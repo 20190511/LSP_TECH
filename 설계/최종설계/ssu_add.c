@@ -51,6 +51,7 @@ int main(int argc, char* argv[])
     if(strstr(filename, BACKUP_PATH) != NULL)
     {
         printf("%s can't be backuped\n", filename);
+        main_help_add();
         exit(1);
     }
 
@@ -59,11 +60,13 @@ int main(int argc, char* argv[])
         if (access(filename, F_OK) != 0)
         {
             printf("%s can't be backuped\n", filename);                //나중에 다 can't be beckuped 로 고칠 것.
+            main_help_add();
             exit(1);
         }
         else
         {
             printf("%s is can not access\n", filename);             //나중에 다 can't be beckuped 로 고칠 것.
+            main_help_add();
             exit(1);
         }
     }
@@ -99,6 +102,11 @@ int main(int argc, char* argv[])
         */
     }
 
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
+    
+    if (access(BACKUP_PATH, R_OK) != 0)
+        mkdir (BACKUP_PATH, 0777);
     ssu_add(filename, flag_d, hash_num);
     exit(0);
 }
