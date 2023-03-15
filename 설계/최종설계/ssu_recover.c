@@ -8,9 +8,7 @@
 {\
     if (argc != _CNT)\
     {\
-        printf("Usage : recover <FILENAME> [OPTION]\n"\
-               "    -d : recover directory recursive\n"\
-               "    -n <NEWNAME> : recover file with new name\n");\
+        main_help_recover();\
         exit(1);\
     }\
 }
@@ -28,14 +26,12 @@ int main(int argc, char* argv[])
 
     if (argc == 2)
     {
-        printf("Usage : recover <FILENAME> [OPTION]\n"
-               "    -d : recover directory recursive\n"
-               "    -n <NEWNAME> : recover file with new name\n");
+        main_help_recover();
         exit(1);
     }
     if (argc < 2 || argc > 6)
     {
-        main_help();
+        main_help_recover();
         exit(1);
     }
 
@@ -64,7 +60,7 @@ int main(int argc, char* argv[])
 
                 break;
             case '?':
-                main_help();
+                main_help_recover();
                 break;
         }
     }
