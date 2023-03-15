@@ -17,12 +17,10 @@ int main(int argc, char* argv[])
     {
         if (argc == 1)
         {
-            printf("Usage : remove <FILENAME> [OPTION]\n"
-                   "    -c : remove all sub directory and files from backup directory\n"
-                   "    -a <NEWNAME> : remove directory reculsive from backup directory  \n");
+            main_help_remove();
             exit(1);
         }
-        main_help();
+        main_help_remove();
         exit(1);
     }
 
@@ -46,7 +44,7 @@ int main(int argc, char* argv[])
         }
         else
         {
-            main_help();
+            main_help_remove();
         }
         return 0;
     }
@@ -64,23 +62,21 @@ int main(int argc, char* argv[])
                 a_flag = 1;
                 break;
             case '?':
-                main_help();
+                main_help_remove();
                 break;
         }
     }
 
     if (a_flag && c_flag)
     {
-        printf("Usage : remove <FILENAME> [OPTION]\n"
-                   "    -c : remove all sub directory and files from backup directory\n"
-                   "    -a <NEWNAME> : remove directory reculsive from backup directory  \n");
+        main_help_remove();
         exit(1);
     }
     else if (a_flag)
     {
         if (argc != 3)      //remove 경로 -a 의 경우에는 항상 argc가 4(+1(해시) 5임.)
         {
-            main_help();
+            main_help_remove();
             exit(1);
         }
 
@@ -93,7 +89,7 @@ int main(int argc, char* argv[])
     {
         if (argc != 2)
         {
-            main_help();
+            main_help_remove();
             exit(1);
         }
         //printf("option c: all clear\n");
