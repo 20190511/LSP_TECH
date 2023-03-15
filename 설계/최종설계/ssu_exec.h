@@ -264,14 +264,6 @@ int basic_filter (const struct dirent* entry);
 int append_samefile2 (Flist* flist, char* file_path, int opt, int f_opt);
 char* scandir_filename;
 
-
-
-/** help 함수 추가 03.15*/
-void main_help_add();
-void main_help_remove();
-void main_help_recover();
-
-
 #ifdef DEBUG
 int main(void)
 {
@@ -286,39 +278,17 @@ int main(void)
 	exit(0);
 }
 #endif
-
-void main_help_add()
-{
-    printf("Usage: add <FILENAME> [OPTION]\n"
-            "    -d : add directory recursive\n");
-}
-void main_help_remove()
-{
-    printf("Usage: remove <FILENAME> [OPTION]\n"
-            "    -c : remove all file(reculsive)\n"
-            "    -a <NEWNAME> : clear backup directory\n");
-}
-void main_help_recover()
-{
-    printf("Usage: recover <FILENAME> [OPTION]\n"
-            "    -d : recover directory recursive\n"
-            "    -n <NEWNAME> : recover file with new name\n");
-}
-
-
-
-
 void main_help()
 {
     printf("Usage:\n"
             "  > add <FILENAME> [OPTION]\n"
             "    -d : add directory recursive\n"
-            "  > remove <FILENAME> [OPTION]\n"
-            "    -c : remove all file(reculsive)\n"
-            "    -a <NEWNAME> : clear backup directory\n"
             "  > recover <FILENAME> [OPTION]\n"
             "    -d : recover directory recursive\n"
             "    -n <NEWNAME> : recover file with new name\n"
+            "  > remove <FILENAME> [OPTION]\n"
+            "    -c : remove all sub directory and files from backup directory\n"
+            "    -a <NEWNAME> : remove directory reculsive from backup directory  \n"
             "  > ls\n"
             "  > vi\n"
             "  > vim\n"
@@ -2452,7 +2422,6 @@ int add_backup(char* backup_path, char* file_name)
 /**
  * 해싱 함수 : 해당 파일 f 를 option 으로 해싱
  * return -> 해싱된 문자열.
-
 char* do_hashing(FILE *f, int opt)							//option 0 :md5, 1: sha1
 {
     SHA_CTX sha1_buf;
@@ -2461,7 +2430,6 @@ char* do_hashing(FILE *f, int opt)							//option 0 :md5, 1: sha1
     int fd;
     int i;
     unsigned char buf[BUFSIZE];
-
     fd=fileno(f);
     opt==0 ? MD5_Init(&md5_buf) : SHA1_Init(&sha1_buf);	    // 필수! 처음 해싱할 때 생성해줘야함. (삼항연산 이용해서 사용.)
     for (;;)
@@ -2834,11 +2802,7 @@ int append_samefile2 (Flist* flist, char* file_path, int opt, int f_opt)
  * junhyeong@DESKTOP-UPFPK8Q:~/go2$ ./hash_example diff.c 1			// 1: sha1
 	83eba35f13c8f33a7bd40e6f3194bab14091a461
 	hash size is 40
-
 	junhyeong@DESKTOP-UPFPK8Q:~/go2$ ./hash_example diff.c 0		// 0 :md5, 
 	29d6c16dacf3a7617f97204978cfce2c00000000
 	hash size is 40
 */
-
-
-
