@@ -95,11 +95,21 @@ int main(int argc, char* argv[])
         }
         //printf("option c: all clear\n");
         //printf("hash is %s\n", hash);
+        if (strlen(BACKUP_PATH) == 0)
+            get_backuppath();
+        
+        if (access(BACKUP_PATH, R_OK) != 0)
+            mkdir (BACKUP_PATH, 0777);
         printf("please wait .....\n");
         ssu_remove_all();
         exit(0);
     }
-
+    
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
+    
+    if (access(BACKUP_PATH, R_OK) != 0)
+        mkdir (BACKUP_PATH, 0777);
     ssu_remove(filename, a_flag);
     exit(0);
 }
