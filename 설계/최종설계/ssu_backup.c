@@ -9,7 +9,8 @@
 //add . -d
 #define PROMPT  printf("20190511> ");
 #define PR(_CMD, _OPT)      printf("%s %d printed\n", _CMD,_OPT);
-#define MAXPATHLEN      256
+#define MAXFILELEN      256
+#define MAXPATHLEN      4097
 #define MAXPROMPTLEN    1024
 void main_help();
 char** prompt_token(char* char_prompt, int* prompt_argc, char* hash);
@@ -380,13 +381,22 @@ int file_size_check (char file_names[])
         realpath(file_name, file_name);
     if (strstr(file_name, "/home") == NULL)
     {
-        printf("%s is over from /home directory\n", file_name);
+        //printf("%s is over from /home directory\n", file_name);
         return 0;
     }
 
     if (strlen(file_name) >= MAXPATHLEN)
     {
         printf("%s size is %ld. It is over MAX file legnth(%d)\n", file_name,strlen(file_name), MAXPATHLEN);
+        return 0;
+    }
+
+
+    char *onlyfile = strrchr(file_name, '/');
+    onlyfile++;
+    if (strlen(onlyfile) >= MAXFILELEN)
+    {
+        printf("%s size is %ld. It is over MAX file legnth(%d)\n", onlyfile,strlen(file_name), MAXFILELEN);
         return 0;
     }
 
@@ -402,8 +412,8 @@ void clear_func()
     strcpy(clean_file[0],"ssu_add");
     strcpy(clean_file[1],"ssu_recover");
     strcpy(clean_file[2],"ssu_remove");
-    strcpy(clean_file[3],"ssu_help");
-
+    strcpy(clean_file[3],"ssu_help");  
+ 
     for (int i = 0 ; i < 4 ; i++)
     {
         realpath(clean_file[i], clean_file[i]);
