@@ -194,6 +194,7 @@ int main(int argc, char* argv[]){
 
                 if (pid == 0)
                 {
+                    file_size_check(prompt_argv[prompt_argc-1]);
                     if (execv (prompt_argv[0], prompt_argv) == -1)
                     {
                         printf("execve error\n");
@@ -375,10 +376,38 @@ void main_help()
 // char *tmp = realpath 형태 사용불가.
 int file_size_check (char file_names[])
 {
-    char file_name [4097] = {0,};    
+    char file_name [MAXPATHLEN*2] = {0,};    
     strcpy(file_name, file_names);
-    if (file_name[0] != '/')
+    
+    if (file_name[0] == '~')
+    {
+        char* find_delimeter = strrchr(file_name, '~');
+        char tmp_path [MAXPATHLEN];
+        strcpy(tmp_path, getcwd(NULL, MAXPATHLEN));
+        char* tmp_ptr = tmp_path + strlen("/home/");
+        for (int i = 0 ; i < MAXPATHLEN-strlen("/home")-1 ; i++)
+        {
+            if (*tmp_ptr == '/')
+            {
+                *tmp_ptr = '\0';
+                break;
+            }
+            tmp_ptr++;
+        }
+
+        char tmp_pwd[MAXPATHLEN] = {0,};
+        strcpy(tmp_pwd, tmp_path);
+        // 만약 ../~ 이런 형태로 단독으로 온다면..
+        if (strcmp(find_delimeter, "~") != 0) 
+        {
+            strcat(tmp_pwd, find_delimeter+1);
+        }
+        strcpy(file_name,tmp_pwd);
+    }
+
+    if (file_name[0] != '/' || strstr(file_name,"/..") != NULL)
         realpath(file_name, file_name);
+
     if (strstr(file_name, "/home") == NULL)
     {
         //printf("%s is over from /home directory\n", file_name);
@@ -423,4 +452,10 @@ void clear_func()
             remove(clean_file[i]);
         }
     }
+}
+
+void get_actualpath()
+{
+    
+
 }
