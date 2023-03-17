@@ -194,7 +194,9 @@ int main(int argc, char* argv[]){
 
                 if (pid == 0)
                 {
-                    file_size_check(prompt_argv[prompt_argc-1]);
+                    if (prompt_argv[prompt_argc-1][0] != '-')
+                        file_size_check(prompt_argv[prompt_argc-1]);
+                    
                     if (execv (prompt_argv[0], prompt_argv) == -1)
                     {
                         printf("execve error\n");
