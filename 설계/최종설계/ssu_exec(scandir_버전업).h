@@ -91,6 +91,8 @@ char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
  *  2023-3-13 recover no -d 옵션 처리 디버깅
  *          - 백업파일에만 존재하는 파일에대해 동작할 때 check 함수 내부에서 d옵션을 걸러주지 못하던 오류 수정
  *          - remove 경로에만 존재하는 파일 삭제.
+ * 
+ *  2023-3-17 : ~ 경로 추가
  */
 
 
@@ -275,6 +277,9 @@ void main_help_recover();
 #ifdef DEBUG
 int main(void)
 {
+    char tmp[MAXPATHLEN] = "home";
+    file_size_check(tmp);
+    printf("%s\n", tmp);
     //ssu_remove("/home/junhyeong/test", 0);
     //ssu_remove("/home/junhyeong/test1",1);
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
@@ -329,10 +334,28 @@ void main_help()
 
 int file_size_check (char file_names[])
 {
-    char file_name [4097] = {0,};    
+    char file_name [MAXPATHLEN*2] = {0,};    
     strcpy(file_name, file_names);
-    if (file_name[0] != '/')
+    
+    if (file_name[0] == '~')
+    {
+        char* find_delimeter = strrchr(file_name, '~');
+        if (strlen(ACTUAL_PATH) == 0)
+            get_actualpath();
+
+        char tmp_pwd[MAXPATHLEN] = {0,};
+        strcpy(tmp_pwd, ACTUAL_PATH);
+        // 만약 ../~ 이런 형태로 단독으로 온다면..
+        if (strcmp(find_delimeter, "~") != 0) 
+        {
+            strcat(tmp_pwd, find_delimeter+1);
+        }
+        strcpy(file_name,tmp_pwd);
+    }
+
+    if (file_name[0] != '/' || strstr(file_name,"/..") != NULL)
         realpath(file_name, file_name);
+
     if (strstr(file_name, "/home") == NULL)
     {
         //printf("%s is over from /home directory\n", file_name);
