@@ -2182,7 +2182,7 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
     {
         if (access(newfile->path_name, F_OK) != 0)
         {
-            printf("%s is not existed!\n", filename);
+            //printf("%s is not existed!\n", filename);
         }
         else
         {
