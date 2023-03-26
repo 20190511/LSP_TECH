@@ -27,7 +27,7 @@
 #define BUFSIZE	            1024*16
 #define HASH_LEN            41
 #define START_FLIST_IDX     40                    //일단 파일 IDX는 40개로 시작
-#define MAX_FILE_SIZE       100000000
+#define MAX_FILE_SIZE       1000000000
 #define DIRECTRY_ACCESS     0777
 #define LEGTH_ERR(_STR, _RETURN_TYPE)     if (strlen(_STR) >= MAXPATHLEN)\
 {\
@@ -273,21 +273,17 @@ void main_help_add();
 void main_help_remove();
 void main_help_recover();
 
-
 #ifdef DEBUG
 int main(void)
 {
-    char tmp[MAXPATHLEN] = "home";
-    file_size_check(tmp);
-    printf("%s\n", tmp);
     //ssu_remove("/home/junhyeong/test", 0);
-    //ssu_remove("/home/junhyeong/test1",1);
+    //ssu_remove("/home/junhyeong/go2",1);
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
     //ssu_recover("/home/junhyeong/go2", 1, 1, "good", 0);
     //get_actualpath();
     //ssu_recover("/home/junhyeong/test",1,1, "good",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
-    //ssu_remove_all();             //전체 삭제함수
+    ssu_remove_all();             //전체 삭제함수
 	exit(0);
 }
 #endif
@@ -300,8 +296,8 @@ void main_help_add()
 void main_help_remove()
 {
     printf("Usage: remove <FILENAME> [OPTION]\n"
-            "    -c : remove all file(reculsive)\n"
-            "    -a <NEWNAME> : clear backup directory\n");
+            "    -a : remove all file(recursive)\n"
+            "    -c : clear backup directory\n");
 }
 void main_help_recover()
 {
@@ -612,46 +608,42 @@ void ssu_remove_all()
     }
     printf("backup directory cleared(%d regular files and %d subdirectories totally)\n",
                 bs->file_cnt+sub_total, bs->dir_cnt);
-    while(bs->dir_cnt != 1 && del_cnt < 100)                             //폴더가비워질 때 까지 재귀 삭제 : (하지만 100번 이상 폴더를 탐색하는 경우에는 break;)
+    for (int i = 0 ; i < bs->file_cnt ; i++)
     {
-
-        for (int i = 0 ; i < bs->file_cnt ; i++)
+        sub_total += bs->file_cnt_table[i]-1;
+        if (bs->file_cnt_table[i] == 1)
         {
-            sub_total += bs->file_cnt_table[i]-1;
-            if (bs->file_cnt_table[i] == 1)
+            //파일 삭제.
+            remove(bs->file_array[i]->path_name);
+        }
+        else
+        {
+            Filenode *node = bs->file_array[i];
+            
+            while(node != NULL)
             {
-                //파일 삭제.
-                remove(bs->file_array[i]->path_name);
-            }
-            else
-            {
-                Filenode *node = bs->file_array[i];
-                
-                while(node != NULL)
-                {
-                    node = node->next;
-                    //파일 삭제
-                    remove(node->path_name);
-                }
+                node = node->next;
+                //파일 삭제
+                remove(node->path_name);
             }
         }
+    }
 
-        for (int i = 0 ; i < bs->dir_cnt ; i++)
+    for (int i = bs->dir_cnt-1 ; i >=0  ; i--)
+    {
+        if(strcmp(bs->dir_array[i]->path_name, BACKUP_PATH) == 0)
+            continue;
+        // 딕셔너리 삭제
+        if (rmdir(bs->dir_array[i]->path_name) < 0)
         {
-            if(strcmp(bs->dir_array[i]->path_name, BACKUP_PATH) == 0)
-                continue;
-            // 딕셔너리 삭제
-            if (rmdir(bs->dir_array[i]->path_name) < 0)
-            {
-                //printf("%s can't be erased \n", bs->dir_array[i]->path_name);
-                //printf("err string is %s\n", strerror(errno));
-            }
+            //printf("%s can't be erased \n", bs->dir_array[i]->path_name);
+            //printf("err string is %s\n", strerror(errno));
         }
-        free_flist(bs);
-        bs = backup_search (BACKUP_PATH, 0, 1);
-        del_cnt++;
-        //printf("directory delete process : %d\n", del_cnt+1);
-    }  
+    }
+    free_flist(bs);
+    bs = backup_search (BACKUP_PATH, 0, 1);
+    del_cnt++;
+    //printf("directory delete process : %d\n", del_cnt+1);
     free_flist(bs);
 }
 
@@ -688,7 +680,6 @@ void ssu_remove (char* file_name, int a_flag)
             flist = remove_file->flist;
         }
         
-        
         for (int i = 0 ; i < flist->file_cnt ; i++)
         {
             if (flist->file_cnt_table[i] != 1)
@@ -709,6 +700,11 @@ void ssu_remove (char* file_name, int a_flag)
                 remove(flist->file_array[i]->path_name);
 
             }
+        }
+
+        for (int i = flist->dir_cnt-1 ; i >= 0 ; i--)
+        {
+            remove(flist->dir_array[i]->path_name);
         }
     }
     else
@@ -1226,6 +1222,7 @@ FRlist* ssu_recover_default (char* file_name, int d_flag, int f_opt)
             {
                 if(S_ISDIR(tmp_node->file_stat.st_mode))
                 {
+                    append(flist, tmp_node->inverse_path, 1, 0);                //03.26 교수님 댓글 상 direcetory도 삭제해야함
                     tmp_node = tmp_node->next;
                     continue;
                 }
@@ -1332,7 +1329,13 @@ void append_samefile (Flist* flist, char* original_file_name, int f_opt)
         if (strcmp(inverse_path, filename->inverse_path) == 0)
         {
             strcpy(inverse_ptr, sub_dir[i]->d_name);
-            append(flist, filename->inverse_path, 1, f_opt);
+            if (stat(filename->inverse_path, &(filename->file_stat)) == 0)
+            {
+                if (S_ISREG(filename->file_stat.st_mode))
+                {
+                    append(flist, filename->inverse_path, 1, f_opt);
+                }
+            }
         }
 
         free(sub_dir[i]);
