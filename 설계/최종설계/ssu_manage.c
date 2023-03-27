@@ -23,14 +23,15 @@ typedef struct mlist{
 }Mlist;
 
 
-Mnode *new_mnodes(char* file_name, int opt, int f_opt);
-Mlist* new_mlist();
-void mappend (Mlist* mlist, char* file_name, int opt, int f_opt);
-void print_mlist (Mlist* mlist);
+/** 모두 03.27 추가 : 파일 관리자 구조체*/
+Mnode *new_mnodes(char* file_name, int opt, int f_opt);                                 // Mnode 생성자 블럭 (filenode->구조체이용)
+Mlist* new_mlist();                                                                     // mlist 생성자 블럭
+void mappend (Mlist* mlist, char* file_name, int opt, int f_opt);                       // mlist 에 딕셔너리/파일 등 연결리스트에 연결해주는 구조체 (dir,file 구분연결)
+void print_mlist (Mlist* mlist);                                                        // 파일 관리된 mlist 출력
 void update_mlist (Mlist* mlist, Flist* flist, Rlist* rlist, int opt, int f_opt);       // flist, rlist 를 기준으로 manage list 를 업데하트하기
-void free_mlist(Mlist* mlist);
-void pop_mlist (Mlist* mlist, char* delete_string);
-Mlist* manage_backup_path_file();
+void free_mlist(Mlist* mlist);                                                          // add,remove,recover 함수 호출 후 삭제.
+void pop_mlist (Mlist* mlist, char* delete_string);                                     // 백업 경로에 있는 파일 삭제 시 관리
+Mlist* manage_backup_path_file();                                                       // 백업 경로에 있는 모든 파일 mlist화
 
 
 int main()
