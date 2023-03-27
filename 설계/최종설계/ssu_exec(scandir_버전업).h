@@ -35,6 +35,9 @@
     return _RETURN_TYPE;\
 }
 
+#define PRINT_ERR(_MSG) \
+{fprintf(stderr, "%S Error !\n", _MSG);}
+
 char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
 char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
 
@@ -163,8 +166,30 @@ typedef struct frlist{
 }FRlist;
 
 
-#define PRINT_ERR(_MSG) \
-{fprintf(stderr, "%S Error !\n", _MSG);}
+/** 03.27 추가 : 파일 리스트 종합관리 리스트.*/
+
+typedef struct managenode {
+    Filenode* filenode;
+    //나중에 설정할 값들. 
+    struct managenode* next;
+    struct managenode* same_next;        // 같은 파일 , 다른 백업시간의 파일들을 연결하는 포인터. 
+    struct managenode* same_next_tail;   // same_next에 연결된 노드 중 가장 마지막 노드, 삽입시간을 O(1) 로 하기위함. 없으면 NULL
+    int same_cnt;                       // 자기 자신 노드를 포함하고 same_next에 연결된 파일 개수
+                 
+}Mnode;
+
+typedef struct mlist{
+    Mnode* dir_head;
+    Mnode* file_head;
+    Mnode* dir_tail;          // 연결리스트를 바로 연결하기 위한 구조. O(1)
+    Mnode* file_tail;
+    int file_cnt;                       // 파일 총 개수
+    int dir_cnt;                        // 디렉토리 총 개수
+
+    //★file_rear_table, file_cnt_table 는 max_file_cnt를 따라감.
+}Mlist;
+
+
 
 // 사용하지 않는 함수계열
 int add_backup(char* backup_path, char* file_name);
@@ -266,7 +291,15 @@ int basic_filter (const struct dirent* entry);
 int append_samefile2 (Flist* flist, char* file_path, int opt, int f_opt);
 char* scandir_filename;
 
-
+/** 모두 03.27 추가 : 파일 관리자 구조체*/
+Mnode *new_mnodes(char* file_name, int opt, int f_opt);                                 // Mnode 생성자 블럭 (filenode->구조체이용)
+Mlist* new_mlist();                                                                     // mlist 생성자 블럭
+void mappend (Mlist* mlist, char* file_name, int opt, int f_opt);                       // mlist 에 딕셔너리/파일 등 연결리스트에 연결해주는 구조체 (dir,file 구분연결)
+void print_mlist (Mlist* mlist);                                                        // 파일 관리된 mlist 출력
+void update_mlist (Mlist* mlist, Flist* flist, Rlist* rlist, int opt, int f_opt);       // flist, rlist 를 기준으로 manage list 를 업데하트하기
+void free_mlist(Mlist* mlist);                                                          // add,remove,recover 함수 호출 후 삭제.
+void pop_mlist (Mlist* mlist, char* delete_string);                                     // 백업 경로에 있는 파일 삭제 시 관리
+Mlist* manage_backup_path_file();                                                       // 백업 경로에 있는 모든 파일 mlist화
 
 /** help 함수 추가 03.15*/
 void main_help_add();
@@ -276,14 +309,15 @@ void main_help_recover();
 #ifdef DEBUG
 int main(void)
 {
+    //ssu_add("/home/junhyeong/go2", 1, 1);
     //ssu_remove("/home/junhyeong/test", 0);
     //ssu_remove("/home/junhyeong/go2",1);
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
     //ssu_recover("/home/junhyeong/go2", 1, 1, "good", 0);
     //get_actualpath();
-    //ssu_recover("/home/junhyeong/test",1,1, "good",1);
+    ssu_recover("/home/junhyeong/go2",1,1, "/home/junhyeong/next",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
-    ssu_remove_all();             //전체 삭제함수
+    //ssu_remove_all();             //전체 삭제함수
 	exit(0);
 }
 #endif
@@ -653,6 +687,9 @@ void ssu_remove (char* file_name, int a_flag)
     Filenode* newfile = new_filenodes(file_name, 0,0);
     int only_backup_path_flag = 0;
     Flist* only_backup_path;
+    
+    Mlist* file_manage_list = new_mlist();                                  //파일 리스트를 관리하는 리스트 mlist 생성.
+
     if (newfile == NULL)
     {
         only_backup_path = check_backup_file_for_remove(file_name, a_flag);
@@ -678,6 +715,7 @@ void ssu_remove (char* file_name, int a_flag)
         {
             remove_file = ssu_recover_default(newfile->path_name, 1, 0);
             flist = remove_file->flist;
+            update_mlist(file_manage_list, flist, NULL, 1, 0);
         }
         
         for (int i = 0 ; i < flist->file_cnt ; i++)
@@ -690,6 +728,7 @@ void ssu_remove (char* file_name, int a_flag)
                     printf("\"%s\" backup file removed\n", delnode->path_name);
                     //delnode 삭제
                     remove(delnode->path_name);
+                    pop_mlist(file_manage_list, delnode->path_name);            //파일 관리리스트에서 파일 삭제
                     delnode = delnode->next;
                 }
             }
@@ -698,6 +737,7 @@ void ssu_remove (char* file_name, int a_flag)
                 printf("\"%s\" backup file removed\n", flist->file_array[i]->path_name);
                 //delnode 삭제 : flist->file_array[i]->path_name
                 remove(flist->file_array[i]->path_name);
+                pop_mlist(file_manage_list, flist->file_array[i]->path_name);   //파일 관리리스트에서 파일 삭제
 
             }
         }
@@ -705,6 +745,7 @@ void ssu_remove (char* file_name, int a_flag)
         for (int i = flist->dir_cnt-1 ; i >= 0 ; i--)
         {
             remove(flist->dir_array[i]->path_name);
+            pop_mlist(file_manage_list, flist->dir_array[i]->path_name);   //파일 관리리스트에서 파일 삭제
         }
     }
     else
@@ -736,6 +777,7 @@ void ssu_remove (char* file_name, int a_flag)
             printf("\"%s\" backup file removed\n", flist->file_array[0]->path_name);
             //delnode 삭제 : flist->file_array[0]->path_name
             remove(flist->file_array[0]->path_name);
+            pop_mlist(file_manage_list, flist->file_array[0]->path_name);     //파일 관리리스트에서 파일 삭제
             
         }
         else
@@ -785,10 +827,12 @@ void ssu_remove (char* file_name, int a_flag)
                 printf("\"%s\" backup file removed\n", tmp_node->path_name);
                 //백업파일 삭제 추가
                 remove(tmp_node->path_name);
+                pop_mlist(file_manage_list, tmp_node->path_name);      //파일 관리리스트에서 파일 삭제
             }
         }
     }
 
+    free_mlist(file_manage_list);
     if (only_backup_path_flag)
     {
         free_flist(flist);
@@ -919,6 +963,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
         }
     }
 
+    Mlist *file_manage_list = new_mlist();                          //파일 관리 리스트 생성
     if (flg_d)
     {
         if (!S_ISDIR(newnode->file_stat.st_mode))
@@ -930,6 +975,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
             recover_list = ssu_recover_default(newnode->path_name, flg_d, f_opt);
             Rlist* rlist = recover_list->rlist;
             Flist* flist = recover_list->flist;
+            update_mlist(file_manage_list, flist, rlist, 1, f_opt);
             char time_default[TIME_TYPE] = {0,};
             char** prev_inverse_path;
             if (flg_n)
@@ -958,6 +1004,8 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                         printf("\"%s\" backup file recover to %s\n", flist->file_array[i]->path_name, flist->file_array[i]->inverse_path);
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
                         file_cpy(flist->file_array[i]->path_name,flist->file_array[i]->inverse_path);
+                        if (!flag_n)
+                            mappend(file_manage_list, flist->file_array[i]->inverse_path, 0, f_opt);            //파일 관리리스트에 recover 추가.
                     }
                     else
                     {
@@ -980,6 +1028,9 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                                 printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
                                 //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
                                 file_cpy(tmp_node->path_name,tmp_node->inverse_path);
+                                if (!flag_n)
+                                    mappend(file_manage_list, tmp_node->inverse_path, 0, f_opt);            //파일 관리리스트에 recover 추가.
+                    
                             }
                             else
                             {
@@ -1039,6 +1090,9 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                                 printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
                                 //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
                                 file_cpy(tmp_node->path_name, tmp_node->inverse_path);
+                                if (!flg_n)
+                                    mappend(file_manage_list, tmp_node->inverse_path, 0, f_opt);            //파일 관리리스트에 recover 추가.
+                    
                             }
                             else
                             {
@@ -1068,6 +1122,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
         recover_list = ssu_recover_default(newnode->path_name, flg_d, f_opt);
         Rlist* rlist = recover_list->rlist;
         Flist* flist = recover_list->flist;
+        update_mlist(file_manage_list, flist, rlist, 1, f_opt);
         char time_default[TIME_TYPE] = {0,};
         char* prev_inverse_path;
         if (flg_n)
@@ -1090,6 +1145,8 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                 printf("\"%s\" backup file recover to \"%s\"\n", flist->file_array[0]->path_name, flist->file_array[0]->inverse_path);
                 //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
                 file_cpy(flist->file_array[0]->path_name, flist->file_array[0]->inverse_path);
+                if (!flg_n)
+                    mappend(file_manage_list, flist->file_array[0]->inverse_path, 0, f_opt);            //파일 관리리스트에 recover 추가.
             }
             else
             {
@@ -1112,6 +1169,9 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                         printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
                         file_cpy(tmp_node->path_name, tmp_node->inverse_path);
+                        if (!flg_n)
+                            mappend(file_manage_list, tmp_node->inverse_path, 0, f_opt);            //파일 관리리스트에 recover 추가.
+            
                     }
                     else
                     {
@@ -1171,6 +1231,8 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                         printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
                         file_cpy(tmp_node->path_name, tmp_node->inverse_path);
+                        if (!flg_n)
+                            mappend(file_manage_list, tmp_node->inverse_path, 0, f_opt);            //파일 관리리스트에 recover 추가.
                     }
                     else
                     {
@@ -1184,6 +1246,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
     
     free(newnode);
     free_frlist(recover_list);
+    free_mlist(file_manage_list);
     return 1;
 }
 
@@ -1468,6 +1531,7 @@ int ssu_add (char* file_name, int flag, int f_opt)
         printf("%s can't be backuped\n", file_name);
         return 0;
     }
+    Mlist* file_manage_list = new_mlist();                  //파일 관리 리스트 구조체 생성
     char original_path[MAXPATHLEN] = {0,};
     char backup_path[MAXPATHLEN] = {0,};
 
@@ -1485,7 +1549,7 @@ int ssu_add (char* file_name, int flag, int f_opt)
         {
             Rlist* original_node = original_search(original_path, f_opt, 1);
             Flist* backup_node = backup_search(backup_path, f_opt, 1);              //03.08 얜 애초에 디렉토리라서 상관없음.
-
+            update_mlist(file_manage_list, backup_node,original_node, 1, f_opt);
             Filenode* cpy_node = original_node->rear;
             for (int file_cnt = 0 ; file_cnt < original_node->file_cnt ; file_cnt++)
             {
@@ -1518,6 +1582,7 @@ int ssu_add (char* file_name, int flag, int f_opt)
                     {
                         printf("\"%s\" backuped\n", cpy_node->inverse_path);
                         node_file_cpy(cpy_node);
+                        mappend(file_manage_list, cpy_node->inverse_path,1, f_opt);   //파일 관리 리스트 구조체에 백업경로추가
                     }
                 }
                 cpy_node = cpy_node->next;
@@ -1547,14 +1612,14 @@ int ssu_add (char* file_name, int flag, int f_opt)
             *ptr_tok ='\0';
         }
         Flist* backup_node = backup_search (backup_path, f_opt, 0);
-
+        update_mlist(file_manage_list, backup_node,original_node, 1, f_opt);
         int check = 1;
-        if (backup_node != NULL)
+        if (backup_node != NULL) 
         {
             for (int cnt = 0 ; cnt < backup_node->file_cnt ; cnt++)
             {
                 if (strcmp(backup_node->file_array[cnt]->file_name, original_node->header->file_name) == 0)
-                {
+                {// 동일한 해시가 존재하기때문에 생성할 필요 없음.
                     Filenode* node = backup_node->file_array[cnt];
                     while(node != NULL)
                     {
@@ -1572,14 +1637,16 @@ int ssu_add (char* file_name, int flag, int f_opt)
             }
         }
 
-        if (check)      // 동일한 해시가 존재하기때문에 생성할 필요 없음.
+        if (check)      
         {
             printf("\"%s\" backuped\n", original_node->header->inverse_path);
             node_file_cpy(original_node->header);
+            mappend(file_manage_list, original_node->header->inverse_path,1, f_opt);    //파일 관리 리스트 구조체에 백업경로추가
         }
 
         free_rlist(original_node);
         free_flist(backup_node);
+        free_mlist(file_manage_list);           //모든 파일관리 리스트체계 종료
     }
     free(tmp_node);
     return 1;
@@ -2905,6 +2972,388 @@ int append_samefile2 (Flist* flist, char* file_path, int opt, int f_opt)
     return scan_cnt;
 }
 
+
+Mnode *new_mnodes(char* file_name, int opt, int f_opt)
+{
+    Mnode* newnode = (Mnode*)malloc(sizeof(Mnode));
+    newnode->filenode = new_filenodes(file_name, opt, f_opt);
+    if (newnode->filenode == NULL)
+        return NULL;
+    newnode->next = NULL;
+    newnode->same_next = NULL;
+    newnode->same_next_tail = NULL; 
+    newnode->same_cnt = 1;
+    return newnode;
+}
+
+Mlist* new_mlist()
+{
+    Mlist* mlist = (Mlist*)malloc(sizeof(Mlist));
+    mlist->dir_head = NULL;
+    mlist->file_head = NULL;
+    mlist->dir_tail = NULL;          // 연결리스트를 바로 연결하기 위한 구조. O(1)
+    mlist->file_tail = NULL;
+    mlist->file_cnt = 0;                       // 파일 총 개수
+    mlist->dir_cnt = 0;                        // 디렉토리 총 개수
+
+    return mlist;
+}
+
+
+
+void mappend (Mlist* mlist, char* file_name, int opt, int f_opt)                  // 파일 array 대해 추가. option 0: orignal, 1: Backup
+{
+    Mnode* newfile = new_mnodes(file_name, opt, f_opt); // 동일하게 작동.
+
+    int dir_check = 0;
+    if (newfile == NULL)
+        return;
+    if(S_ISDIR(newfile->filenode->file_stat.st_mode))
+    {
+        if (mlist->dir_head == NULL)
+        {
+            mlist->dir_head = mlist->dir_tail = newfile;
+        }
+        else
+        {
+            mlist->dir_head->next = newfile;
+            mlist->dir_head = newfile;
+        }
+        mlist->dir_cnt++;
+        return;
+    }
+    else
+    {
+        if (mlist->file_head == NULL)
+        {
+            mlist->file_head = mlist->file_tail = newfile;
+            mlist->file_cnt++;
+            return;
+        }
+        if (opt == 0)                           //origianl 파일의 경로는 무조건 한개만 존재해야함
+        {
+            mlist->file_head->next = newfile;
+            mlist->file_head = newfile;
+            mlist->file_cnt++;
+            return;
+        }
+        else
+        {
+
+            Mnode* start; 
+            for(start = mlist->file_tail ; start != NULL ; start = start->next)
+            {
+                char text1[MAXPATHLEN] = {0,};
+                char text2[MAXPATHLEN] = {0,};
+                strcpy(text1, start->filenode->path_name);
+                strcpy(text2, newfile->filenode->path_name);
+                char* token1 = strrchr(text1, '_');
+                char* token2 = strrchr(text2, '_');
+                if (token1 != NULL)
+                    *token1 = '\0';
+                if (token2 != NULL)
+                    *token2 = '\0';
+                
+                if (strcmp(text1, text2) == 0)
+                {
+                    if (start->same_next_tail == NULL)  
+                    {
+                        start->same_next = start->same_next_tail = newfile;
+                    }
+                    else
+                    {
+                        start->same_next_tail->same_next = newfile;
+                        start->same_next_tail = newfile;
+                    }
+                    start->same_cnt++;          //파일명만 동일한 파일에 대해서는 file_cnt를 늘려주지 않도록 설계
+                    return;
+                }
+            }
+            
+            mlist->file_head->next = newfile;
+            mlist->file_head = newfile;
+            mlist->file_cnt++;
+            return;
+
+        }
+    }
+
+}
+
+void print_mlist (Mlist* mlist)
+{
+    printf("================ Start Mange List Print ===============\n");
+    printf("-----------------Backup Dictinary-----------------\n");
+    Mnode* tail = mlist->dir_tail;
+    for (int i = 0 ; i < mlist->dir_cnt ; i++)      //딕셔너리 출력
+    {
+        printf("%s\n", tail->filenode->path_name);
+        tail = tail->next;
+    }
+    printf("-----------------Backup File    -----------------\n");
+    tail = mlist->file_tail;
+    for (int i = 0 ; i < mlist->file_cnt ; i++)     //파일 출력
+    {
+        if (tail->same_cnt > 1)
+        {
+            Mnode* original = tail;
+            for (int x = 0 ; x < tail->same_cnt ; x++)
+            {
+                printf("[%d] >> same file : %s\n",i+1, original->filenode->path_name);
+                original = original->same_next;
+            }
+            tail = tail->next;
+        }
+        else
+        {
+            printf("[%d] %s\n",i+1, tail->filenode->path_name);
+            tail = tail->next;
+        }
+    }
+    printf("================ End Mange List Print ===============\n");
+
+}
+
+
+
+void update_mlist (Mlist* mlist, Flist* flist, Rlist* rlist, int opt, int f_opt)
+{
+    if (flist != NULL)            //flist 로 업데이트
+    {
+        for (int i = 0 ; i < flist->dir_cnt ; i++)      //딕셔너리 업데이트
+        {
+            mappend(mlist, flist->dir_array[i]->path_name, opt, f_opt);
+        }
+
+        for (int i = 0 ; i < flist->file_cnt ; i++)     //파일 출력
+        {
+            Filenode* original = flist->file_array[i];
+            for (int x = 0 ; x < flist->file_cnt_table[i] ; x++)
+            {
+                mappend(mlist, original->path_name, 1, f_opt);
+                original = original->next;
+            }
+        }
+    }
+
+    if (rlist != NULL)           //rlist 로 업데이트
+    {  
+        Filenode* tmp = rlist->rear;
+        for (int i = 0 ; i < rlist->file_cnt ; i++)
+        {
+            mappend(mlist, tmp->path_name, 0, f_opt);
+            tmp = tmp->next;
+        }
+    }
+}
+
+void free_mlist(Mlist* mlist)
+{
+    if (mlist == NULL)
+        return;
+
+    Mnode* delnode;
+    while (mlist->dir_tail != NULL)
+    {
+        delnode = mlist->dir_tail;
+        mlist->dir_tail = mlist->dir_tail->next;
+
+        if (delnode != NULL)
+        {
+            free(delnode->filenode);
+            free(delnode);
+        }
+    }
+
+    delnode = NULL;
+    while(mlist->file_tail != NULL)
+    {
+        while(mlist->file_tail->same_next != NULL)
+        {
+            delnode = mlist->file_tail->same_next;
+            mlist->file_tail->same_next = mlist->file_tail->same_next->same_next;
+            
+            if (delnode != NULL)
+            {
+                free(delnode->filenode);
+                free(delnode);
+            }
+        }
+        delnode = mlist->file_tail;
+        mlist->file_tail = mlist->file_tail->next;
+
+        if (delnode != NULL)
+        {
+            free(delnode->filenode);
+            free(delnode);
+        }
+    }
+
+    if (mlist != NULL)
+        free(mlist);
+}
+
+
+Mlist* manage_backup_path_file(int f_opt) // 백업 경로 파일 모두 긁어옴.
+{
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
+    Flist* tmp = backup_search(BACKUP_PATH,f_opt,1);
+    if (tmp == NULL)
+        return NULL;
+    
+    Mlist* mlist = new_mlist();
+    update_mlist(mlist, tmp, NULL, 1, f_opt);
+    free_flist(tmp);
+    return mlist;
+}
+
+//delete 명령어 용 pop 함수 : 백업디렉토리 파일 삭제에 특화된 함수.
+void pop_mlist (Mlist* mlist, char* delete_string)
+{
+    Mnode* delnode;
+    Mnode* prevnode = NULL;
+    struct stat statbuf;
+    if (stat(delete_string, &statbuf) < 0)
+        return;
+
+    Mnode* move;
+    if (S_ISDIR(statbuf.st_mode))
+    {
+        move = mlist->dir_tail;
+        while (move != NULL)
+        {
+            if (strstr(move->filenode->path_name, "backup") == NULL) //무조건 backup 부터 들어가도록 설계함.
+                return;
+            if (strcmp(move->filenode->path_name, delete_string) == 0)
+            {
+                //printf("!!! Delete Node %s (dictionary)!!!\n", delete_string);
+                delnode = move;
+                if (prevnode == NULL)
+                {
+                    mlist->dir_tail = mlist->dir_tail;
+                    mlist->dir_cnt--;
+                }
+                else
+                {
+                    prevnode->next = move->next;
+                    mlist->dir_cnt--;
+                }
+
+                if (delnode != NULL)
+                {
+                    free(delnode->filenode);
+                    free(delnode);
+                }
+                return;
+            }
+            prevnode = move;
+            move = move->next;
+        }
+    }
+
+    if (S_ISREG(statbuf.st_mode))
+    {
+        move = mlist->file_tail;
+        while(move != NULL)
+        {
+            if (strstr(move->filenode->path_name, "backup") == NULL) //무조건 backup 부터 들어가도록 설계함.
+                return;
+            char text1[MAXPATHLEN] = {0,};
+            char text2[MAXPATHLEN] = {0,};
+            strcpy(text1, move->filenode->path_name);
+            strcpy(text2, delete_string);
+            char* token1 = strrchr(text1, '_');
+            char* token2 = strrchr(text2, '_');
+            if (token1 != NULL)
+                *token1 = '\0';
+            if (token2 != NULL)
+                *token2 = '\0';
+            if (strcmp(text1, text2) == 0)
+            {
+                if (strcmp(move->filenode->path_name, delete_string) == 0)
+                {
+                    delnode = move;
+
+                    if (prevnode == NULL)                   //root node 인 경우
+                    {
+                        if (mlist->file_tail->same_next != NULL)
+                        {
+                            mlist->file_tail = mlist->file_tail->same_next;         //1번
+                            mlist->file_tail->next = move->next;
+                            mlist->file_tail->same_next_tail = move->same_next_tail;
+                            mlist->file_tail->same_cnt = move->same_cnt;
+                            mlist->file_tail->same_cnt--;
+                        }
+                        else
+                        {
+                            mlist->file_tail = mlist->file_tail->next;
+                            mlist->file_cnt--;
+                        }
+                    }
+                    else
+                    {
+                        if (prevnode->same_next != NULL)
+                        {
+                            prevnode->next = move->same_next;    //2번
+                            
+                            prevnode->next->next = move->next;
+                            prevnode->next->same_next_tail = move->same_next_tail;
+                            prevnode->next->same_cnt = move->same_cnt;
+                            prevnode->next->same_cnt--;
+                        }
+                        else
+                        {
+                            prevnode->next = move->next;
+                            mlist->file_tail = mlist->file_tail->next;
+                            mlist->file_cnt--;
+                        }
+                    }
+
+                    if (delnode != NULL)
+                    {
+                        free(delnode->filenode);
+                        free(delnode);
+                    }
+                    return;
+                }
+                else
+                {
+                    Mnode* sub_move = move->same_next;
+                    Mnode* prev_sub_move = NULL;
+                    while(sub_move != NULL)
+                    {
+                        if (strcmp(sub_move->filenode->path_name, delete_string) == 0)
+                        {
+                            delnode = sub_move;
+                            if (prev_sub_move == NULL)
+                            {
+                                move->same_next = sub_move->next;          
+                                move->same_cnt--;
+                            }
+                            else
+                            {
+                                prev_sub_move->same_next = sub_move->next;
+                                move->same_cnt--; 
+                            }
+                            if (delnode != NULL)
+                            {
+                                free(delnode->filenode);
+                                free(delnode);
+                            }
+                            return;
+                        }
+                        prev_sub_move = sub_move;                //이전 노드 기억.
+                        sub_move = sub_move->same_next;
+                    }
+                }
+            }
+            prevnode = move;
+            move = move->next;
+        }
+    }
+}
+
 /**
  * junhyeong@DESKTOP-UPFPK8Q:~/go2$ ./hash_example diff.c 1			// 1: sha1
 	83eba35f13c8f33a7bd40e6f3194bab14091a461
@@ -2914,6 +3363,5 @@ int append_samefile2 (Flist* flist, char* file_path, int opt, int f_opt)
 	29d6c16dacf3a7617f97204978cfce2c00000000
 	hash size is 40
 */
-
 
 
