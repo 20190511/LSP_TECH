@@ -735,7 +735,7 @@ void ssu_remove_all()
     free_mlist(bs);
 }
 
-/*
+
 void ssu_remove (char* file_name, int a_flag)
 {
     Filenode* newfile = new_filenodes(file_name, 0,0);
@@ -756,21 +756,29 @@ void ssu_remove (char* file_name, int a_flag)
         }
     }
     MRlist* remove_file;
-    Flist* flist;
+    Mlist* mlist;
     if (a_flag)
     {
         if (only_backup_path_flag)
         {
-            flist = only_backup_path;
+            mlist = only_backup_path;
         }
         else
         {
             remove_file = ssu_recover_default(newfile->path_name, 1, 0);
-            flist = remove_file->mlist;
-            update_mlist(file_manage_list, flist, NULL, 1, 0);
+            mlist = remove_file->mlist;
         }
         
-        for (int i = 0 ; i < flist->file_cnt ; i++)
+        while(mlist->file_tail != NULL || mlist->total_file_cnt != 0)
+        {
+            char* del_name = mlist->file_tail->filenode->path_name;
+            printf("\"%s\" backup file removed\n", del_name);
+            remove(del_name);
+            popleft_mlist(mlist, 0);
+        }
+
+        /*
+        for (int i = 0 ; i < mlist->file_cnt ; i++)
         {
             if (flist->file_cnt_table[i] != 1)
             {
@@ -780,7 +788,6 @@ void ssu_remove (char* file_name, int a_flag)
                     printf("\"%s\" backup file removed\n", delnode->path_name);
                     //delnode 삭제
                     remove(delnode->path_name);
-                    pop_mlist(file_manage_list, delnode->path_name);            //파일 관리리스트에서 파일 삭제
                     delnode = delnode->next;
                 }
             }
@@ -789,16 +796,20 @@ void ssu_remove (char* file_name, int a_flag)
                 printf("\"%s\" backup file removed\n", flist->file_array[i]->path_name);
                 //delnode 삭제 : flist->file_array[i]->path_name
                 remove(flist->file_array[i]->path_name);
-                pop_mlist(file_manage_list, flist->file_array[i]->path_name);   //파일 관리리스트에서 파일 삭제
 
             }
-        }
 
+        }
+            */
+
+        pop_dict_mlist(mlist);              //딕셔너리 파일은 스택형태로 출력없이 삭제
+
+        /*
         for (int i = flist->dir_cnt-1 ; i >= 0 ; i--)
         {
             remove(flist->dir_array[i]->path_name);
-            pop_mlist(file_manage_list, flist->dir_array[i]->path_name);   //파일 관리리스트에서 파일 삭제
         }
+        */
     }
     else
     {
@@ -818,48 +829,54 @@ void ssu_remove (char* file_name, int a_flag)
                 free(newfile);
                 return;
             }
-            flist = remove_file->flist;
+            mlist = remove_file->mlist;
         }
         else
         {
-            flist = only_backup_path;
+            mlist = only_backup_path;
         }
-        if (flist->file_cnt_table[0] == 1)
+
+
+
+        if (mlist->file_tail->same_cnt == 1)
         {
-            printf("\"%s\" backup file removed\n", flist->file_array[0]->path_name);
+            char* del_name = mlist->file_tail->filenode->path_name;
+            printf("\"%s\" backup file removed\n", del_name);
             //delnode 삭제 : flist->file_array[0]->path_name
-            remove(flist->file_array[0]->path_name);
-            pop_mlist(file_manage_list, flist->file_array[0]->path_name);     //파일 관리리스트에서 파일 삭제
+            remove(del_name);
+            popleft_mlist(mlist, 0);
             
         }
         else
         {
-            printf("backup file list of \"%s\"\n", flist->file_array[0]->inverse_path);
+            Mnode* delnode = mlist->file_tail;
+            printf("backup file list of \"%s\"\n", delnode->filenode->inverse_path);
             printf("0. exit\n");
-            Filenode* tmp_node = flist->file_array[0];
 
-            for (int ni = 0 ; ni < flist->file_cnt_table[0] ; ni++)
+            Mnode* move = mlist->file_tail;
+            for (int ni = 0 ; ni < mlist->file_tail->same_cnt ; ni++)
             {
+                Filenode* tmp_node = move->filenode;
                 printf("%d. ", ni+1);
                 print_time_and_byte(tmp_node);
-                tmp_node = tmp_node->next;
+                move = move->same_next;
             }
 
             printf("Choose file to remove\n");
             int getnum = 5000000;
-            while (getnum < 0 || getnum > flist->file_cnt_table[0])
+            while (getnum < 0 || getnum > mlist->file_tail->same_cnt)
             {
                 printf(">> ");
                 scanf("%d", &getnum);
-                if (getnum < 0 || getnum > flist->file_cnt_table[0])
-                    printf("Please choose 0 ~ %d nums\n",flist->file_cnt_table[0]);
+                if (getnum < 0 || getnum > mlist->file_tail->same_cnt)
+                    printf("Please choose 0 ~ %d nums\n", mlist->file_tail->same_cnt);
             }
             getnum--;
             if(getnum == -1)                //exit() 들어가는 자리
             {
                 if (only_backup_path_flag)
                 {
-                    free_flist(flist);
+                    free_mlist(mlist);
                 }
                 else
                 {
@@ -870,21 +887,21 @@ void ssu_remove (char* file_name, int a_flag)
             }
             else
             {
-                tmp_node = flist->file_array[0];
+                move = mlist->file_tail;
                 for (int s = 0 ; s < getnum ; s++)
-                    tmp_node = tmp_node->next;
+                    move = move->same_next;
+                Filenode* tmp_node = move->filenode;
                 printf("\"%s\" backup file removed\n", tmp_node->path_name);
                 //백업파일 삭제 추가
                 remove(tmp_node->path_name);
-                pop_mlist(file_manage_list, tmp_node->path_name);      //파일 관리리스트에서 파일 삭제
+                pop_mlist(mlist, tmp_node->path_name);              //삭제하고 백업파일 리스트에서 삭제
             }
         }
     }
 
-    free_mlist(file_manage_list);
     if (only_backup_path_flag)
     {
-        free_flist(flist);
+        free_mlist(mlist);
     }
     else
     {
@@ -892,7 +909,7 @@ void ssu_remove (char* file_name, int a_flag)
         free_mrlist(remove_file);
     }
 }
-*/
+
 
 
 
@@ -2838,8 +2855,8 @@ Mlist* check_backup_file_for_remove(char* file_name, int flag_a)
 {
     // 상대적인 백업폴더경로.
     // 파일이름.
-    if (strlen(BACKUP_PATH) == 0)
-        get_backuppath();
+    if (strlen(ACTUAL_PATH) == 0)
+        get_actualpath2(file_name);
     
     Mlist* mlist = new_mlist();
     char original_path [MAXPATHLEN*2] = {0,};                       
