@@ -280,6 +280,7 @@ void scandir_makefile(char *parent_folder, char* original_path);
 
 //★ 시작은 무조건 ACTUAL_PATH, BACKUP_PATH부터 구할 것.
 void get_actualpath();
+void get_actualpath2(char* orignal_path);       // 입력된 파일 기준 actual_path
 void get_backuppath();          //get_backuppath() 를 구하면 자동으로 get_actaulpath()구해줌
 
 // 파일 사이즈 체크함수.
@@ -316,7 +317,7 @@ void main_help_add();
 void main_help_remove();
 void main_help_recover();
 
-#define DEBUG
+
 #ifdef DEBUG
 int main(void)
 {
@@ -404,7 +405,7 @@ int file_size_check (char file_names[])
 
     if (file_name[0] != '/' || strstr(file_name,"/..") != NULL)
         realpath(file_name, file_name);
-
+    get_actualpath2(file_name);                 //actual_path 재설정
     if (strstr(file_name, "/home") == NULL)
     {
         //printf("%s is over from /home directory\n", file_name);
@@ -434,8 +435,6 @@ int file_size_check (char file_names[])
 
 void get_backuppath()
 {
-    if (strlen(ACTUAL_PATH) == 0)
-        get_actualpath();
     int fd = open("/etc/passwd", O_RDONLY);
     char buf[BUFSIZ] = {0,};
     int pass_length;
@@ -555,8 +554,8 @@ int check_backup_file(char* file_name, int flag_d)
 {
     // 상대적인 백업폴더경로.
     // 파일이름.
-    if (strlen(BACKUP_PATH) == 0)
-        get_backuppath();
+    if (strlen(ACTUAL_PATH) == 0)
+        get_actualpath2(file_name);
  
     char original_path [MAXPATHLEN*2] = {0,};                       
     char backup_path [MAXPATHLEN] = {0, };
@@ -664,6 +663,45 @@ void get_actualpath()
 }
 
 
+void get_actualpath2(char* orignal_path)
+{
+
+    if (strlen(BACKUP_PATH) == 0)
+        get_backuppath();
+    
+    Mlist* mlist = new_mlist();
+    char or_pth [MAXPATHLEN] = {0,};                       
+    strcpy(or_pth, orignal_path);
+
+    if(orignal_path[0] != '/')
+        realpath(orignal_path, or_pth);
+    
+
+    if(strstr(or_pth, "/home/") == NULL)
+        return;
+    char* home_tok = or_pth + strlen("/home/");
+    char* only_home_tok = strrchr(home_tok, '/');
+    if (only_home_tok == NULL)                      // /home/사용자아이디 형태
+    {
+        strcpy(ACTUAL_PATH, or_pth);
+        //printf("%s\n", or_pth);
+        return;
+    }
+    else
+    {        
+        char* max_num = home_tok + strlen(home_tok);
+        for (char* tk = or_pth + strlen("/home/") ; tk < max_num ; tk++)
+        {
+            if (*tk == '/')
+            {
+                *tk = '\0';
+                //printf("%s\n", or_pth);
+                strcpy(ACTUAL_PATH, or_pth);
+                return;
+            }
+        }
+    }
+}
 
 /**
  *  : backup 전 디렉토리 삭제;
@@ -702,9 +740,7 @@ void ssu_remove (char* file_name, int a_flag)
 {
     Filenode* newfile = new_filenodes(file_name, 0,0);
     int only_backup_path_flag = 0;
-    Flist* only_backup_path;
-    
-    Mlist* file_manage_list = new_mlist();                                  //파일 리스트를 관리하는 리스트 mlist 생성.
+    Mlist* only_backup_path;
 
     if (newfile == NULL)
     {
@@ -856,8 +892,8 @@ void ssu_remove (char* file_name, int a_flag)
         free_mrlist(remove_file);
     }
 }
-
 */
+
 
 
 void free_rlist(Rlist* rlist)                                       // rlist 모든 요소 동적할당 해제
@@ -1432,8 +1468,8 @@ void append_samefile (Mlist* mlist, char* original_file_name, int f_opt)
  * */
 int modify_inversepath (Filenode* node, char* new_name, int flag_d)
 {
-    if (strlen(BACKUP_PATH) == 0)
-        get_backuppath();
+    if (strlen(ACTUAL_PATH) == 0)
+        get_actualpath2(node->path_name);
     char pwd[MAXPATHLEN] = {0,};
     char file_size_check_str[MAXPATHLEN*2] = {0,};
     getcwd(pwd, MAXPATHLEN);
@@ -2233,8 +2269,8 @@ Filenode* new_filenode ()                                // 기본 초기화
  */ 
 Filenode* new_filenodes (char* filename, int opt, int f_opt)        
 {
-    if (strlen(BACKUP_PATH) == 0)
-        get_backuppath();
+    if (strlen(ACTUAL_PATH) == 0)
+        get_actualpath2(filename);
     char tmp_path[MAXPATHLEN] = {0,};
     Filenode* newfile = new_filenode();
 
@@ -2812,6 +2848,9 @@ Mlist* check_backup_file_for_remove(char* file_name, int flag_a)
 
     if(file_name[0] != '/')
         realpath(file_name, original_path);
+
+    if (strstr(original_path, "/home/") )
+
     if(strstr(original_path, ACTUAL_PATH) == NULL)
     {
         return NULL;
