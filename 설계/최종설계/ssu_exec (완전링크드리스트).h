@@ -332,6 +332,8 @@ int main(void)
     //get_actualpath();
     //Filenode* fi = new_filenodes("/home/junhyeong/go2", 0, 1);
     //print_node(fi);
+    struct stat stabuf;
+    int check = stat("/home/junhyeong/next3", &stabuf);
     ssu_recover("/home/junhyeong/go2/ssu_processer.c",0,1, "/home/junhyeong/next3/processer.c",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
     //ssu_remove_all();             //전체 삭제함수
@@ -1039,9 +1041,10 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                 {
                     if (!hash_compare_one(file_array->filenode, file_array->filenode->inverse_path, 0, f_opt)) // 복사.
                     {
-                        printf("\"%s\" backup file recover to %s\n", file_array->filenode->path_name, file_array->filenode->inverse_path);
+                        int making_check = file_cpy(file_array->filenode->path_name, file_array->filenode->inverse_path);
+                        if (making_check)
+                            printf("\"%s\" backup file recover to %s\n", file_array->filenode->path_name, file_array->filenode->inverse_path);
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
-                        file_cpy(file_array->filenode->path_name, file_array->filenode->inverse_path);
                     }
                     else
                     {
@@ -1062,9 +1065,10 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                         {
                             if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
                             {
-                                printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
+                                int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
+                                if (making_check)
+                                    printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
                                 //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
-                                file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                     
                             }
                             else
@@ -1124,9 +1128,10 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                             strcpy(time_default, tmp_node->back_up_time);
                             if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
                             {
-                                printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
+                                int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
+                                if(making_check)
+                                    printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
                                 //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
-                                file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                     
                             }
                             else
@@ -1179,9 +1184,10 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
             Filenode* tmp_node = mlist->file_tail->filenode;
             if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
             {
-                printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
+                int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
+                if(making_check)
+                    printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
                 //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
-                file_cpy(tmp_node->path_name, tmp_node->inverse_path);
             }
             else
             {
@@ -1201,9 +1207,10 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                 {
                     if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
                     {
-                        printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
+                        int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
+                        if(making_check)
+                            printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
-                        file_cpy(tmp_node->path_name, tmp_node->inverse_path);
             
                     }
                     else
@@ -1263,9 +1270,10 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                     strcpy(time_default, tmp_node->back_up_time);
                     if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
                     {
-                        printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
+                        int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
+                        if (making_check)
+                            printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
-                        file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                     }
                     else
                     {
@@ -1995,7 +2003,7 @@ int make_directory (char* dest)
         token_dest = strtok(NULL, "/");  
         if (token_dest != NULL)             // strtok 값이 NULL 이라는건 마지막파일이라는 의미/
         {
-
+            struct stat statbuf;
             if (access(tmp_path, F_OK) != 0)
             {
                 if (mkdir(tmp_path, DIRECTRY_ACCESS) < 0)
