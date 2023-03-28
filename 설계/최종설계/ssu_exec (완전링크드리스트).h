@@ -334,7 +334,7 @@ int main(void)
     //print_node(fi);
     struct stat stabuf;
     int check = stat("/home/junhyeong/next3", &stabuf);
-    ssu_recover("/home/junhyeong/go2/ssu_processer.c",0,1, "/home/junhyeong/next3/processer.c",1);
+    ssu_recover("/home/junhyeong/lect",1,0, "/home/junhyeong/next2",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
     //ssu_remove_all();             //전체 삭제함수
 	exit(0);
