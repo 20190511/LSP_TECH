@@ -324,7 +324,7 @@ int main(void)
     //printf("%s\n", BACKUP_PATH);
     //Filenode* ex = new_filenodes("KMP.c", 0,0);
     //print_node(ex);
-    //ssu_add("/home/junhyeong/go2", 1, 1);
+    //ssu_add("/home/junhyeong/file2.cpp", 0, 1);
     //ssu_remove("/home/junhyeong/test", 0);
     //ssu_remove("/home/junhyeong/go2",1);
     //int check = check_backup_file("/home/junhyeong/ses/go.cpp");
@@ -332,11 +332,11 @@ int main(void)
     //get_actualpath();
     //Filenode* fi = new_filenodes("/home/junhyeong/go2", 0, 1);
     //print_node(fi);
-    struct stat stabuf;
-    int check = stat("/home/junhyeong/next3", &stabuf);
-    ssu_recover("/home/junhyeong/lect",1,0, "/home/junhyeong/next2",1);
+    //ssu_recover("/home/junhyeong/lect",1,0, "/home/junhyeong/next2",1);
     //ssu_remove("ssu_add.c", 0);   // 백업 부분 삭제함수
-    //ssu_remove_all();             //전체 삭제함수
+    ssu_remove_all();             //전체 삭제함수
+    //Mlist* mlist = manage_backup_path_file();
+    //print_mlist(mlist);
 	exit(0);
 }
 #endif
@@ -668,62 +668,36 @@ void get_actualpath()
 /**
  *  : backup 전 디렉토리 삭제;
 */
-/*
+
 void ssu_remove_all()
 {
     if (strlen(BACKUP_PATH) == 0)
         get_backuppath();
-    Flist* bs = backup_search (BACKUP_PATH, 0, 1);
-    int sub_total = 0;
+    Mlist* bs = backup_search (BACKUP_PATH, 0, 1);
     int del_cnt = 0;
     if (bs->file_cnt == 0 && bs->dir_cnt == 1)                                  //백업 파일 0개이면 프롬포트 출력
     {  
         printf("no file(s) in the backup\n");
-        free_flist(bs);
+        free_mlist(bs);
         return;
     }
     printf("backup directory cleared(%d regular files and %d subdirectories totally)\n",
-                bs->file_cnt+sub_total, bs->dir_cnt);
-    for (int i = 0 ; i < bs->file_cnt ; i++)
+                bs->total_file_cnt, bs->dir_cnt - 1);
+
+    while (bs->file_tail != NULL || bs->file_cnt != 0)
     {
-        sub_total += bs->file_cnt_table[i]-1;
-        if (bs->file_cnt_table[i] == 1)
-        {
-            //파일 삭제.
-            remove(bs->file_array[i]->path_name);
-        }
-        else
-        {
-            Filenode *node = bs->file_array[i];
-            
-            while(node != NULL)
-            {
-                node = node->next;
-                //파일 삭제
-                remove(node->path_name);
-            }
-        }
+        char* del_name = bs->file_tail->filenode->path_name;
+        //printf("%s\n", del_name);
+        remove(del_name);
+        popleft_mlist(bs, 0);       //파일 삭제 (리스트의 요소를 삭제하며 백업 경로 삭제)
+        
     }
 
-    for (int i = bs->dir_cnt-1 ; i >=0  ; i--)
-    {
-        if(strcmp(bs->dir_array[i]->path_name, BACKUP_PATH) == 0)
-            continue;
-        // 딕셔너리 삭제
-        if (rmdir(bs->dir_array[i]->path_name) < 0)
-        {
-            //printf("%s can't be erased \n", bs->dir_array[i]->path_name);
-            //printf("err string is %s\n", strerror(errno));
-        }
-    }
-    free_flist(bs);
-    bs = backup_search (BACKUP_PATH, 0, 1);
-    del_cnt++;
-    //printf("directory delete process : %d\n", del_cnt+1);
-    free_flist(bs);
+    pop_dict_mlist(bs); //백업 경로의 디렉토리는 스택형태로 삭제되기 위하여 제작 (상위폴더보다 하위폴더가 먼저 지워지게하기위함.)
+    free_mlist(bs);
 }
 
-
+/*
 void ssu_remove (char* file_name, int a_flag)
 {
     Filenode* newfile = new_filenodes(file_name, 0,0);
@@ -882,8 +856,8 @@ void ssu_remove (char* file_name, int a_flag)
         free_mrlist(remove_file);
     }
 }
-*/
 
+*/
 
 
 void free_rlist(Rlist* rlist)                                       // rlist 모든 요소 동적할당 해제
@@ -3402,6 +3376,27 @@ void pop_mlist (Mlist* mlist, char* delete_string)
 }
 
 
+void* pop_dict_mlist(Mlist* mlist)
+{
+    int dir_cnt = mlist->dir_cnt;
+    char** dict_stack = (char**)malloc(sizeof(char*) * dir_cnt);
+    for (int i = dir_cnt-1 ; i >= 0 ; i--)
+    {
+        dict_stack[i] = popleft_mlist(mlist, 1);
+    }
+
+    for (int i = 0 ; i < dir_cnt ; i++)
+    {
+        if (strcmp(BACKUP_PATH, dict_stack[i]) == 0)
+            continue;
+        //printf("%s\n", dict_stack[i]);
+        remove(dict_stack[i]);
+        free(dict_stack[i]);
+    }
+
+    free(dict_stack);
+}
+
 char* popleft_mlist(Mlist* mlist, int option)   //하나씩 삭제
 {
     if (mlist == NULL)
@@ -3422,6 +3417,7 @@ char* popleft_mlist(Mlist* mlist, int option)   //하나씩 삭제
     }
     else //파일 삭제
     {
+        delnode = mlist->file_tail;
         if (mlist->file_tail == NULL)
             return NULL;
         //delnode = mlist->file_tail;
@@ -3449,7 +3445,6 @@ char* popleft_mlist(Mlist* mlist, int option)   //하나씩 삭제
         }
     }
 }
-
 /**
  * junhyeong@DESKTOP-UPFPK8Q:~/go2$ ./hash_example diff.c 1			// 1: sha1
 	83eba35f13c8f33a7bd40e6f3194bab14091a461
