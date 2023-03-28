@@ -777,39 +777,8 @@ void ssu_remove (char* file_name, int a_flag)
             popleft_mlist(mlist, 0);
         }
 
-        /*
-        for (int i = 0 ; i < mlist->file_cnt ; i++)
-        {
-            if (flist->file_cnt_table[i] != 1)
-            {
-                Filenode* delnode = flist->file_array[i];
-                while(delnode != NULL)
-                {
-                    printf("\"%s\" backup file removed\n", delnode->path_name);
-                    //delnode 삭제
-                    remove(delnode->path_name);
-                    delnode = delnode->next;
-                }
-            }
-            else
-            {
-                printf("\"%s\" backup file removed\n", flist->file_array[i]->path_name);
-                //delnode 삭제 : flist->file_array[i]->path_name
-                remove(flist->file_array[i]->path_name);
-
-            }
-
-        }
-            */
-
         pop_dict_mlist(mlist);              //딕셔너리 파일은 스택형태로 출력없이 삭제
 
-        /*
-        for (int i = flist->dir_cnt-1 ; i >= 0 ; i--)
-        {
-            remove(flist->dir_array[i]->path_name);
-        }
-        */
     }
     else
     {
@@ -842,7 +811,6 @@ void ssu_remove (char* file_name, int a_flag)
         {
             char* del_name = mlist->file_tail->filenode->path_name;
             printf("\"%s\" backup file removed\n", del_name);
-            //delnode 삭제 : flist->file_array[0]->path_name
             remove(del_name);
             popleft_mlist(mlist, 0);
             
@@ -1016,6 +984,10 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
     int flg_d = flag_d;
     int flg_n = flag_n;
     
+
+    if (flg_n)
+        get_actualpath2(file_name);
+
     if(newnode == NULL)
     {
         //체킹함수 제작
@@ -1059,7 +1031,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                     file_array = file_array->next;
                 }
             }
-
+            //printf("mlist count : file:%d, dir:%d\n", mlist->file_cnt, mlist->dir_cnt);
 
             Mnode* file_array = mlist->file_tail;
             for (int i = 0 ; i < mlist->file_cnt ; i++)
@@ -1422,6 +1394,7 @@ void append_samefile (Mlist* mlist, char* original_file_name, int f_opt)
         *last_ptr = '\0';
     }
 
+
     //printf("%s\n", filename->inverse_path);
     ///추가 03.06
     struct stat tmp_stat;
@@ -1436,7 +1409,7 @@ void append_samefile (Mlist* mlist, char* original_file_name, int f_opt)
     int file_cnt;
     if ((file_cnt = scandir(filename->inverse_path, &sub_dir, NULL, alphasort)) < 0)
     {
-        printf("apple_samefile: Scan Error %s\n", filename->inverse_path);
+        printf("samefile func(): Scan Error %s\n", filename->inverse_path);
         free(filename);
         return;
     }
@@ -1485,8 +1458,7 @@ void append_samefile (Mlist* mlist, char* original_file_name, int f_opt)
  * */
 int modify_inversepath (Filenode* node, char* new_name, int flag_d)
 {
-    if (strlen(ACTUAL_PATH) == 0)
-        get_actualpath2(node->path_name);
+    get_actualpath2(new_name);
     char pwd[MAXPATHLEN] = {0,};
     char file_size_check_str[MAXPATHLEN*2] = {0,};
     getcwd(pwd, MAXPATHLEN);
@@ -1559,6 +1531,7 @@ int modify_inversepath (Filenode* node, char* new_name, int flag_d)
                 node->path_name, node->inverse_path ,file_type_ptr, new_name_ptr);
     }
 
+    get_actualpath2(node->path_name);
     free(inverse_path);
     return check;
 }
@@ -2299,8 +2272,9 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         }
         else
         {
-            sprintf(newfile->path_name,"%s/%s", opt==1 ? BACKUP_PATH : getcwd(NULL, MAXPATHLEN), filename);    
+            sprintf(newfile->path_name,"%s/%s", opt==1 ? BACKUP_PATH : getcwd(NULL, MAXPATHLEN), filename); 
         }
+        
     }
     else
     {
@@ -2313,8 +2287,8 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
 
         strcpy(newfile->path_name, filename);
     }
-
-    char file_size_check_str[MAXPATHLEN*2] = {0,};      //03.10 파일 사이즈 체크전용 문자열
+    //printf("temp path : %s\n", newfile->path_name);
+    char file_size_check_str[MAXPATHLEN*2+2] = {0,};      //03.10 파일 사이즈 체크전용 문자열
 
 
     if (access(newfile->path_name, R_OK) != 0)          //없거나 접근 불가능할 때, 
@@ -2327,6 +2301,7 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         {
             printf("%s can not access!\n", filename);
         }
+        //printf("%s\n", newfile->path_name);     //디버그용 출력
         free(newfile);
         return NULL;
     }
@@ -2367,6 +2342,9 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
 
     //actual_path 만드는 과정
     strcpy(tmp_path, newfile->path_name);
+    //if (opt == 0)  // 오리지널 배업경로
+    //printf("::%s\n", tmp_path);
+    //printf(":::%s\n", ACTUAL_PATH);
     char* tks = tmp_path + strlen(opt==1 ? BACKUP_PATH : ACTUAL_PATH);
     strcpy(newfile->actual_path, tks);
 
@@ -2414,19 +2392,23 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         {
             char* cur_time_ptr = curr_time();
             strcpy(newfile->back_up_time, cur_time_ptr);
-            sprintf(file_size_check_str,"%s%s_%s", BACKUP_PATH, newfile->actual_path,cur_time_ptr);
+            if (BACKUP_PATH[strlen(BACKUP_PATH)-1] != '/' && newfile->actual_path[0] != '/')
+                sprintf(file_size_check_str,"%s/%s_%s", BACKUP_PATH, newfile->actual_path,cur_time_ptr);
+            else
+                sprintf(file_size_check_str,"%s%s_%s", BACKUP_PATH, newfile->actual_path,cur_time_ptr);
             LEGTH_ERR(file_size_check_str, NULL);
             strcpy(newfile->inverse_path, file_size_check_str);
             free(cur_time_ptr);
         }
         else
         {
-            
-            sprintf(file_size_check_str,"%s%s", BACKUP_PATH, newfile->actual_path);
+            if (BACKUP_PATH[strlen(BACKUP_PATH)-1] != '/' && newfile->actual_path[0] != '/')
+                sprintf(file_size_check_str,"%s/%s", BACKUP_PATH, newfile->actual_path);
+            else
+                sprintf(file_size_check_str,"%s%s", BACKUP_PATH, newfile->actual_path);
             LEGTH_ERR(file_size_check_str, NULL);
             strcpy(newfile->inverse_path, file_size_check_str);
         }
-        
     }
    
     //파일용량 (MAX_FILE_SIZE : 100000000) 로 제한 : 안 해주면 4기가짜리 파일 읽는데 시간 엄청걸림 (해싱+복사 하는 과정에 시간 너무써서 버리는걸로..)
@@ -3079,7 +3061,9 @@ void mappend (Mlist* mlist, char* file_name, int opt, int f_opt)                
 
     int dir_check = 0;
     if (newfile == NULL)
+    {
         return;
+    }
     if(S_ISDIR(newfile->filenode->file_stat.st_mode))
     {
         if (mlist->dir_head == NULL)
