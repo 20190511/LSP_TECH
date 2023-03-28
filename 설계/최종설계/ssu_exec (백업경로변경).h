@@ -159,6 +159,7 @@ typedef struct rlist{
 
 /**
  * r,f 리스트를 동시에 저장하는 구조체.
+ * m,r 리스트로 이름 변경
 */
 typedef struct frlist{
     Rlist* rlist;
@@ -185,7 +186,7 @@ typedef struct mlist{
     Mnode* file_tail;
     int file_cnt;                       // 파일 총 개수
     int dir_cnt;                        // 디렉토리 총 개수
-
+    int total_file_cnt;                 // 총 파일 개수.
     //★file_rear_table, file_cnt_table 는 max_file_cnt를 따라감.
 }Mlist;
 
@@ -300,6 +301,15 @@ void update_mlist (Mlist* mlist, Flist* flist, Rlist* rlist, int opt, int f_opt)
 void free_mlist(Mlist* mlist);                                                          // add,remove,recover 함수 호출 후 삭제.
 void pop_mlist (Mlist* mlist, char* delete_string);                                     // 백업 경로에 있는 파일 삭제 시 관리
 Mlist* manage_backup_path_file();                                                       // 백업 경로에 있는 모든 파일 mlist화
+/** 
+ * option에 따라 파일/디렉토리를 하나씩 지우는 함수.
+ * option : file=0, direcory=1,   
+ *  return : 딕셔너리인 경우에는 스택을 활용하기 위해 char* 동적할당해서 return해줌,
+ *  일반파일의 경우에는 상관없음.
+ */
+char* popleft_mlist(Mlist* mlist, int option);
+void* pop_dict_mlist(Mlist* mlist);                 //mlist 딕셔너리 전용 삭제 (stack형태로 지워야하기 때문)
+
 
 /** help 함수 추가 03.15*/
 void main_help_add();
@@ -429,7 +439,7 @@ void get_backuppath()
 
     while ((pass_length = read(fd, buf, BUFSIZ)) > 0 && check_id == 0)
     {
-        char* user_name = strstr(buf, "junhyeong2");
+        char* user_name = strstr(buf, "junhyeong");
         if (user_name != NULL)
         {
             char* str = strstr(user_name, "/home");
@@ -3022,7 +3032,7 @@ Mlist* new_mlist()
     mlist->file_tail = NULL;
     mlist->file_cnt = 0;                       // 파일 총 개수
     mlist->dir_cnt = 0;                        // 디렉토리 총 개수
-
+    mlist->total_file_cnt = 0;
     return mlist;
 }
 
@@ -3055,6 +3065,7 @@ void mappend (Mlist* mlist, char* file_name, int opt, int f_opt)                
         {
             mlist->file_head = mlist->file_tail = newfile;
             mlist->file_cnt++;
+            mlist->total_file_cnt++;
             return;
         }
         if (opt == 0)                           //origianl 파일의 경로는 무조건 한개만 존재해야함
@@ -3062,6 +3073,7 @@ void mappend (Mlist* mlist, char* file_name, int opt, int f_opt)                
             mlist->file_head->next = newfile;
             mlist->file_head = newfile;
             mlist->file_cnt++;
+            mlist->total_file_cnt++;
             return;
         }
         else
@@ -3093,6 +3105,7 @@ void mappend (Mlist* mlist, char* file_name, int opt, int f_opt)                
                         start->same_next_tail = newfile;
                     }
                     start->same_cnt++;          //파일명만 동일한 파일에 대해서는 file_cnt를 늘려주지 않도록 설계
+                    mlist->total_file_cnt++;
                     return;
                 }
             }
@@ -3100,6 +3113,7 @@ void mappend (Mlist* mlist, char* file_name, int opt, int f_opt)                
             mlist->file_head->next = newfile;
             mlist->file_head = newfile;
             mlist->file_cnt++;
+            mlist->total_file_cnt++;
             return;
 
         }
@@ -3110,6 +3124,7 @@ void mappend (Mlist* mlist, char* file_name, int opt, int f_opt)                
 void print_mlist (Mlist* mlist)
 {
     printf("================ Start Mange List Print ===============\n");
+    printf("total file cnt=%d, dir_cnt=%d\n", mlist->total_file_cnt, mlist->dir_cnt);
     printf("-----------------Backup Dictinary-----------------\n");
     Mnode* tail = mlist->dir_tail;
     for (int i = 0 ; i < mlist->dir_cnt ; i++)      //딕셔너리 출력
@@ -3258,7 +3273,7 @@ void pop_mlist (Mlist* mlist, char* delete_string)
                 delnode = move;
                 if (prevnode == NULL)
                 {
-                    mlist->dir_tail = mlist->dir_tail;
+                    mlist->dir_tail = mlist->dir_tail->next;
                     mlist->dir_cnt--;
                 }
                 else
@@ -3311,11 +3326,13 @@ void pop_mlist (Mlist* mlist, char* delete_string)
                             mlist->file_tail->same_next_tail = move->same_next_tail;
                             mlist->file_tail->same_cnt = move->same_cnt;
                             mlist->file_tail->same_cnt--;
+                            mlist->total_file_cnt--;
                         }
                         else
                         {
                             mlist->file_tail = mlist->file_tail->next;
                             mlist->file_cnt--;
+                            mlist->total_file_cnt--;
                         }
                     }
                     else
@@ -3328,12 +3345,14 @@ void pop_mlist (Mlist* mlist, char* delete_string)
                             prevnode->next->same_next_tail = move->same_next_tail;
                             prevnode->next->same_cnt = move->same_cnt;
                             prevnode->next->same_cnt--;
+                            mlist->total_file_cnt--;
                         }
                         else
                         {
                             prevnode->next = move->next;
                             mlist->file_tail = mlist->file_tail->next;
                             mlist->file_cnt--;
+                            mlist->total_file_cnt--;
                         }
                     }
 
@@ -3357,11 +3376,13 @@ void pop_mlist (Mlist* mlist, char* delete_string)
                             {
                                 move->same_next = sub_move->next;          
                                 move->same_cnt--;
+                                mlist->total_file_cnt--;
                             }
                             else
                             {
                                 prev_sub_move->same_next = sub_move->next;
                                 move->same_cnt--; 
+                                mlist->total_file_cnt--;
                             }
                             if (delnode != NULL)
                             {
@@ -3377,6 +3398,55 @@ void pop_mlist (Mlist* mlist, char* delete_string)
             }
             prevnode = move;
             move = move->next;
+        }
+    }
+}
+
+
+char* popleft_mlist(Mlist* mlist, int option)   //하나씩 삭제
+{
+    if (mlist == NULL)
+        return NULL;
+    
+    Mnode* delnode = mlist->dir_tail;
+    if (option) //디렉토리 삭제
+    {
+        if (mlist->dir_tail == NULL)
+            return NULL;
+        mlist->dir_tail = mlist->dir_tail->next;
+        mlist->dir_cnt--;
+        char* return_str = (char*)malloc(strlen(delnode->filenode->path_name)+1);
+        strcpy(return_str, delnode->filenode->path_name);
+        free(delnode->filenode);
+        free(delnode);
+        return return_str;
+    }
+    else //파일 삭제
+    {
+        if (mlist->file_tail == NULL)
+            return NULL;
+        //delnode = mlist->file_tail;
+        if (delnode->same_next == NULL)     //같은 파일이 없으면 다음 파일
+        {
+            mlist->file_tail = mlist->file_tail->next;
+            mlist->file_cnt--;
+            mlist->total_file_cnt--;
+            free(delnode->filenode);
+            free(delnode);
+            return NULL;                    //파일일 때는 할당하지않음.
+        }
+        else
+        {
+            mlist->file_tail = delnode->same_next;
+            mlist->file_tail->next = delnode->next;
+            mlist->file_tail->same_next_tail = delnode->same_next_tail;
+            mlist->file_tail->same_cnt = delnode->same_cnt;
+            mlist->file_tail->same_cnt--;
+            mlist->file_cnt--;
+            mlist->total_file_cnt--;
+            free(delnode->filenode);
+            free(delnode);
+            return NULL;
         }
     }
 }
