@@ -29,6 +29,7 @@
 #define START_FLIST_IDX     40                    //일단 파일 IDX는 40개로 시작
 #define MAX_FILE_SIZE       1000000000
 #define DIRECTRY_ACCESS     0777
+#define BACKUP_USERNAME     "junhyeong"
 #define LEGTH_ERR(_STR, _RETURN_TYPE)     if (strlen(_STR) >= MAXPATHLEN)\
 {\
     printf("%s string length is %ld, It is over max limit length(%d)\n", _STR,strlen(_STR) ,MAXPATHLEN);\
@@ -439,10 +440,10 @@ void get_backuppath()
     char buf[BUFSIZ] = {0,};
     int pass_length;
     int check_id = 0;
-
+ 
     while ((pass_length = read(fd, buf, BUFSIZ)) > 0 && check_id == 0)
     {
-        char* user_name = strstr(buf, "junhyeong");
+        char* user_name = strstr(buf, BACKUP_USERNAME);
         if (user_name != NULL)
         {
             char* str = strstr(user_name, "/home");
@@ -1018,6 +1019,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
             {
                 prev_inverse_path = (char**)malloc(sizeof(char*) * mlist->file_cnt);
                 Mnode* file_array = mlist->file_tail;
+                get_actualpath2(new_name);
                 for(int idx = 0 ; idx < mlist->file_cnt ; idx++)
                 {
                     prev_inverse_path[idx] = (char*)malloc(sizeof(char) * sizeof(file_array->filenode->inverse_path));
@@ -1030,6 +1032,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                     }
                     file_array = file_array->next;
                 }
+                get_actualpath2(file_name);
             }
             //printf("mlist count : file:%d, dir:%d\n", mlist->file_cnt, mlist->dir_cnt);
 
@@ -1112,11 +1115,15 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                                 printf("Please choose 0 ~ %d nums\n", file_array->same_cnt);
                         }
                         getnum--;
-                        if(getnum == -1) //<- exit() 들어가면됨 : return 이 exit임 어차피 여기서 exit는 다시 프롬포트띄워야함
+                        if(getnum == -1) //<- exit() 들어가면됨 : 해당 파일은 건너띄는것으로 재설정
                         {
+                            /*
                             free(newnode);
                             free_mrlist(recover_list);
                             return 1;
+                            */
+                           file_array = file_array->next;
+                           continue;
                         }
                         else
                         {
@@ -1166,6 +1173,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
         char* prev_inverse_path;
         if (flg_n)
         {
+            get_actualpath2(new_name);          //new_name으로 ACTUAL_PATH 임시변경
             prev_inverse_path = (char*)malloc(sizeof(char) * sizeof(mlist->file_tail->filenode->inverse_path));
             strcpy(prev_inverse_path, mlist->file_tail->filenode->inverse_path);
             Mnode* move = mlist->file_tail;
@@ -1175,6 +1183,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                 modify_inversepath(tmp_node, new_name, flg_d);
                 move = move->same_next;
             }
+            get_actualpath2(file_name);         //file_name으로 ACTUAL_PATH 다시복귀
         }
 
 
@@ -1458,7 +1467,7 @@ void append_samefile (Mlist* mlist, char* original_file_name, int f_opt)
  * */
 int modify_inversepath (Filenode* node, char* new_name, int flag_d)
 {
-    get_actualpath2(new_name);
+    
     char pwd[MAXPATHLEN] = {0,};
     char file_size_check_str[MAXPATHLEN*2] = {0,};
     getcwd(pwd, MAXPATHLEN);
@@ -1531,7 +1540,6 @@ int modify_inversepath (Filenode* node, char* new_name, int flag_d)
                 node->path_name, node->inverse_path ,file_type_ptr, new_name_ptr);
     }
 
-    get_actualpath2(node->path_name);
     free(inverse_path);
     return check;
 }
@@ -3428,7 +3436,10 @@ void* pop_dict_mlist(Mlist* mlist)
     for (int i = 0 ; i < dir_cnt ; i++)
     {
         if (strcmp(BACKUP_PATH, dict_stack[i]) == 0)
+        {
+            free(dict_stack[i]);
             continue;
+        }
         //printf("%s\n", dict_stack[i]);
         remove(dict_stack[i]);
         free(dict_stack[i]);
