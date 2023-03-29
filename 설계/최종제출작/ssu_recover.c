@@ -61,9 +61,6 @@ int main(int argc, char* argv[])
                     printf("%s can't be backuped\n", newname);
                     exit(1);
                 }
-                
-
-
 
                 break;
             case '?':
@@ -120,7 +117,6 @@ int main(int argc, char* argv[])
     
     if (access(BACKUP_PATH, R_OK) != 0)
         mkdir (BACKUP_PATH, 0777);
-    
     ssu_recover(filename, flag_d, flag_n, newname, hash_num);
     exit(0);
 }
