@@ -71,6 +71,17 @@ int main(int argc, char* argv[])
         }
     }
 
+    /** filename이 filename 기준으로 backup 디렉토리랑 겹치는 경우도 종료*/
+    get_actualpath2(filename);
+    char actual_backup [MAXPATHLEN+7] = {0,};
+    sprintf(actual_backup, "%s/backup", ACTUAL_PATH);
+    if (strstr(filename, actual_backup) != NULL)
+    {
+        printf("%s can't be backuped\n", filename);
+        main_help_add();
+        exit(1);
+    }
+
     int hash_num = (strcmp("md5", hash) == 0) ? 0 : 1;
     if (flag_d)
     {
