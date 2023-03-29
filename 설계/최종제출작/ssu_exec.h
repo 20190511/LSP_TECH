@@ -8,7 +8,7 @@
 //#define BACKUP_USERNAME     "junhyeong"
 #define LEGTH_ERR(_STR, _RETURN_TYPE)     if (strlen(_STR) >= MAXPATHLEN)\
 {\
-    printf("%s string length is %ld, It is over max limit length(%d)\n", _STR,strlen(_STR) ,MAXPATHLEN);\
+    printf("%s string length is %ld, It is over max limit length(%d)\n", _STR,strlen(_STR) ,MAXPATHLEN-1);\
     return _RETURN_TYPE;\
 }
 
