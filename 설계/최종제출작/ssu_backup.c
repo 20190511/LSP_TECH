@@ -65,7 +65,22 @@ int main(int argc, char* argv[]){
 
         // 백업 디렉토리 생성.
         get_backuppath();
-        mkdir(BACKUP_PATH, 0777);
+        struct stat dirstat;
+        if (access(BACKUP_PATH, F_OK) == 0)
+        {
+            if (stat(BACKUP_PATH, &dirstat) < 0)
+            {
+                fprintf(stderr, "Can't be accessed my backup directory : %s, exit program...\n", BACKUP_PATH);
+                exit(1);
+            }
+            if (!S_ISDIR(dirstat.st_mode))
+            {
+                fprintf(stderr, "There are conflict name and no directory file about my backup directory : %s, exit program...\n", BACKUP_PATH);
+                exit(1);
+            }
+        }
+        else
+            mkdir(BACKUP_PATH, 0777);
 
         while(1)
         {
