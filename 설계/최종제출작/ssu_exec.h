@@ -20,7 +20,7 @@
  * 2023-3-4 :구현
  *  - 해시 비교함수                                         (완료)
  *  - 파일 경로 A->B 파일 복사.                             (완료)
- *  - 디렉토리 전부탐사         -> flist                    (완료)
+ *  - 디렉토리 전부탐사         ->  flist->mlist                    (완료)
  *  - 파일명 같은 파일 경로찾아서 연결리스트 구현. ->rlist    (필요X)
  *  - ls,vi 제작.
  * 
@@ -71,6 +71,10 @@
  *          - remove 경로에만 존재하는 파일 삭제.
  * 
  *  2023-3-17 : ~ 경로 추가
+ * 
+ * 
+ *  2023-3-25~ : flist(테이블 체이닝) -> mlist(완전연결리스트 체이닝) 방식 전환
+ *              RIP : flist는 역사속으로 사라졌습니다.
  */
 
 
@@ -89,32 +93,6 @@ typedef struct filenode {
     struct filenode* next;              // Reg 파일의 경우 연결리스트 사용
 }Filenode;
 
-/** back-up 파일 연결리스트
- *  디렉토리 파일은 그냥 테이블로 구현    (그냥 테이블.)
- *  디렉토리 이외의 파일은 Reg파일로 구현 (해시함수와같은 연결리스트 형태)
- * 
- * 
- *  <file_array 구조형태는 아래와 같은형태로 사용)
- *  A_123 -> A_345 -> A_467  (<-file_rear_table[0])
- *  B_145 -> B_234   (<-file_rear_table[1])
- *  D               
- *  F_175 -> F_293 -> F_239293     
-*/
-typedef struct flist{
-    Filenode** dir_array;
-
-    Filenode** file_array;
-    Filenode** file_rear_table;          // 연결리스트를 바로 연결하기 위한 구조. O(1)
-    int* file_cnt_table;                     // 해당 각 동일명의 파일 개수
-    
-    int file_cnt;                       // 파일 총 개수
-    int dir_cnt;                        // 디렉토리 총 개수
-
-    int max_file_cnt;                   // file_array 최대할당량
-    int max_dir_cnt;                    // dir_array 최대할당량
-    //★file_rear_table, file_cnt_table 는 max_file_cnt를 따라감.
-}Flist;
-
 
 /**
  * : rlist : 단순 연결리스트 헤더
@@ -122,6 +100,7 @@ typedef struct flist{
  *  :꼬리부분과 헤더부분 존재.
  *  (꼬리부분 :rear (헤더)) + (헤더부분 : header(새로 추가될 때마다 갱신되는 부분))
  * 생각해보니, flist에 rlist 구조체를 넣어서 만들었으면 되었음.. (아쉬운점)
+ *   --> 해당 부분 완전연결리스트로 대체하면서 최적화 성공.
  * 
 */
 typedef struct rlist{
@@ -141,6 +120,20 @@ typedef struct managenode {
                  
 }Mnode;
 
+/** back-up 파일 연결리스트
+ *  디렉토리 파일은 그냥 테이블로 구현    (그냥 테이블.)
+ *  디렉토리 이외의 파일은 Reg파일로 구현 (해시함수와같은 연결리스트 형태)
+ * 
+ * 
+ *  <file_array 구조형태는 아래와 같은형태로 사용)
+ *  A_123 -> A_345 -> A_467  (<-file_rear_table[0])
+ *  ↓
+ *  B_145 -> B_234   (<-file_rear_table[1])
+ *  ↓
+ *  D
+ *  ↓               
+ *  F_175 -> F_293 -> F_239293     
+*/
 typedef struct mlist{
     Mnode* dir_head;
     Mnode* file_head;
@@ -181,19 +174,14 @@ int hash_compare_one (Filenode* a_node, char* path_name, int opt, int f_opt);
 // 구조체 초기화 함수들.
 Filenode* new_filenode ();                                           // 기본 초기화
 Filenode* new_filenodes (char* filename, int opt, int f_opt);        // 파일 초기화, option 0: original, 1: backup
-void flist_sizeup (Flist* flst);                                     // Flist 인덱스 사이즈업.
-Flist* new_flist ();
 Rlist* new_Rlist();
 MRlist* new_MRlist(Mlist* mlist, Rlist* rlist);
 void print_node (Filenode* node);                                    // Filenode Unit 상태 출력
 void print_rlist (Rlist* rlist);                                     // rlist 모든 요소 출력
-void print_flist (Flist* flist);                                     // flist 모든 요소 출력
-void append (Flist* flist, char* file_name, int opt, int f_opt);     // flist 파일 array 대해 추가. option 0: orignal, 1: Backup
 void rappend (Rlist* rlist, char* file_name, int opt, int f_opt);    // Rlist 에 file_name 경로 데이터 단순 연결
 Filenode* rpopleft (Rlist* rlist);                                   // Rlist 큐 popleft
 
 void free_rlist(Rlist* rlist);                                       // rlist 모든 요소 동적할당 해제
-void free_flist(Flist* flist);                                       // flist 모든 요소 동적할당 해제
 void free_mrlist(MRlist* mrlist);                                    // mrlist 모든 요소 동적할당 해제
 
 // 파일 복사 함수
@@ -264,7 +252,6 @@ Mnode *new_mnodes(char* file_name, int opt, int f_opt);                         
 Mlist* new_mlist();                                                                     // mlist 생성자 블럭
 void mappend (Mlist* mlist, char* file_name, int opt, int f_opt);                       // mlist 에 딕셔너리/파일 등 연결리스트에 연결해주는 구조체 (dir,file 구분연결)
 void print_mlist (Mlist* mlist);                                                        // 파일 관리된 mlist 출력
-void update_mlist (Mlist* mlist, Flist* flist, Rlist* rlist, int opt, int f_opt);       // flist, rlist 를 기준으로 manage list 를 업데하트하기
 void free_mlist(Mlist* mlist);                                                          // add,remove,recover 함수 호출 후 삭제.
 void pop_mlist (Mlist* mlist, char* delete_string);                                     // 백업 경로에 있는 파일 삭제 시 관리
 Mlist* manage_backup_path_file();                                                       // 백업 경로에 있는 모든 파일 mlist화
@@ -735,58 +722,6 @@ void free_rlist(Rlist* rlist)                                       // rlist 모
     }
     
 }
-void free_flist(Flist* flist)                                       // flist 모든 요소 동적할당 해제 (신중하게)
-{
-    if (flist == NULL)
-        return;
-
-    for (int i = 0 ; i < flist->dir_cnt ; i++)
-    {
-        if (flist->dir_array[i] != NULL)
-        {
-            free(flist->dir_array[i]); 
-            flist->dir_array[i] = NULL;
-        }
-    }
-    if (flist->dir_array != NULL)
-    {
-        free(flist->dir_array);
-        flist->dir_array = NULL;
-    }
-
-    for (int i = 0 ; i < flist->file_cnt ; i++)
-    {
-        Filenode* delnode = flist->file_array[i];
-        while(flist->file_array[i] != NULL)
-        {
-            delnode = flist->file_array[i];
-            flist->file_array[i] = flist->file_array[i]->next;
-            free(delnode); 
-            delnode = NULL;
-        }
-        
-    }
-    
-    if(flist->file_rear_table != NULL)
-    {
-        free(flist->file_rear_table); 
-        flist->file_rear_table=NULL;
-    }
-
-    if (flist->file_array != NULL)
-    {
-        free(flist->file_array); 
-        flist->file_array = NULL;
-    }
-
-    if (flist->file_cnt_table != NULL)
-    {
-        free(flist->file_cnt_table); 
-        flist->file_cnt_table=NULL;
-    }
-
-    free(flist);
-}
 
 void free_mrlist(MRlist* mrlist)                                    // mrlist 모든 요소 동적할당 해제
 {
@@ -1132,7 +1067,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
 /**
  *  : 원래경로(file_name) 을 기준으로
  *      백업해야할 백업 폴더 (inverse_path) 로 가서
- *      recover 할 Flist, Rlist 들을 받아오는 함수.             
+ *      recover 할 mlist, Rlist 들을 받아오는 함수.             
  * 
  *  -> 예외처리 추가 (3.6) : 백업파일에는 파일이 있는 인자면 체크 후 해당 백업파일경로에 파일 추가 후 진행. 
  * 
@@ -1527,36 +1462,6 @@ int ssu_add (char* file_name, int flag, int f_opt)
     return 1;
 }
 
-
-
-void print_flist (Flist* flist)
-{
-    printf("================ Start Flist Print ===============\n");
-    printf("-----------------Backup Dictinary-----------------\n");
-    for (int i = 0 ; i < flist->dir_cnt ; i++)      //딕셔너리 출력
-    {
-        printf("%s\n", flist->dir_array[i]->path_name);
-    }
-    printf("-----------------Backup File    -----------------\n");
-    for (int i = 0 ; i < flist->file_cnt ; i++)     //파일 출력
-    {
-        if (flist->file_cnt_table[i] > 1)
-        {
-            Filenode* original = flist->file_array[i];
-            for (int x = 0 ; x < flist->file_cnt_table[i] ; x++)
-            {
-                printf("[%d] >> same file : %s\n",i+1, original->path_name);
-                original = original->next;
-            }
-        }
-        else
-        {
-            printf("[%d] %s\n",i+1, flist->file_array[i]->path_name);
-        }
-    }
-    printf("================ End Flist Print ===============\n");
-
-}
 
 void print_rlist (Rlist* rlist)
 {
@@ -2281,28 +2186,6 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
 }
 
 
-Flist* new_flist ()
-{
-    Flist *newflist = (Flist*)malloc(sizeof(Flist));
-    newflist->dir_array = (Filenode**)malloc(sizeof(Filenode*)*START_FLIST_IDX);
-
-    newflist->file_array = (Filenode**)malloc(sizeof(Filenode*)*START_FLIST_IDX);
-    newflist->file_rear_table = (Filenode**)malloc(sizeof(Filenode*)*START_FLIST_IDX);
-    newflist->file_cnt_table =  (int*)malloc(sizeof(int)*START_FLIST_IDX);
-    for (int i = 0 ; i < START_FLIST_IDX ; i++)
-    {
-        newflist->file_array[i] = NULL;
-        newflist->dir_array[i] = NULL;
-        newflist->file_rear_table[i] = NULL;
-        newflist->file_cnt_table[i] = 0;
-    }
-    newflist->file_cnt = 0;
-    newflist->dir_cnt = 0;
-    newflist->max_file_cnt = START_FLIST_IDX;
-    newflist->max_dir_cnt = START_FLIST_IDX;
-
-    return newflist;
-}
 
 /**
  * 구조체 세트 반환
@@ -2313,99 +2196,6 @@ MRlist* new_MRlist(Mlist* mlist, Rlist* rlist)
     mrlist->mlist = mlist;
     mrlist->rlist = rlist;
     return mrlist;
-}
-
-
-/**
- *  : flist 에 file_name을 추가해주는 함수 (opt에 따라 연결리스트 여부 자동결정)
- * 
-*/
-void append (Flist* flist, char* file_name, int opt, int f_opt)                  // 파일 array 대해 추가. option 0: orignal, 1: Backup
-{
-    Filenode* newfile = new_filenodes(file_name, opt, f_opt);
-    int dir_check = 0;
-    if (newfile == NULL)
-        return;
-    if(S_ISDIR(newfile->file_stat.st_mode))
-        dir_check = 1;
-    if (S_ISDIR(newfile->file_stat.st_mode) && flist->dir_cnt == flist->max_dir_cnt)
-        flist_sizeup(flist);
-    
-    if (S_ISREG(newfile->file_stat.st_mode) && flist->file_cnt == flist->max_file_cnt)
-        flist_sizeup(flist);
-
-    if (opt == 0)               //그냥 백업이므로 연결리스트필요없음.
-    {
-        if (dir_check)
-        {
-            int idx = flist->dir_cnt;
-            flist->dir_array[idx++] = newfile;
-            flist->dir_cnt = idx;
-        }
-        else
-        {
-            int idx = flist->file_cnt;
-            flist->file_array[idx++] = newfile;
-            flist->file_cnt = idx;
-        }
-    }
-    else                        // path_name 일치하면 file_name을 strrchr 로 뒷값을 가져와서
-    {
-        if (dir_check)          // 디렉토리면 그냥 연결.
-        {
-            int idx = flist->dir_cnt;
-            flist->dir_array[idx++] = newfile;
-            flist->dir_cnt = idx;
-        }
-        else
-        {
-            int same = 0;
-            for (int i = 0 ; i < flist->file_cnt ; i++)
-            {
-                if (strcmp(flist->file_array[i]->inverse_path, newfile->inverse_path) == 0)
-                {
-                    same = 1; //같은게 존재한다는건 노드가 있다는 뜻.
-                    flist->file_rear_table[i]->next = newfile;          // 붙이기 전에 끝에 존재하던 노드에 연결
-                    flist->file_rear_table[i] = newfile;                // rear를 newfile로 재설정
-                    flist->file_cnt_table[i]++;                         // 추가된 리스트의 개수 추가
-                }
-            }
-            if (same == 0)
-            {
-                flist->file_array[flist->file_cnt] = newfile;
-                flist->file_rear_table[flist->file_cnt] = newfile;            // 시작점이니까 rear에 등록.
-                flist->file_cnt_table[flist->file_cnt] = 1;                   // 추가된 리스트의 개수 추가. (1로 갱신)
-                flist->file_cnt++;                                            // 파일 총 개수 증가.
-            }
-        }
-    }
-}
-
-void flist_sizeup (Flist* flst)
-{
-    if (flst->dir_cnt >= flst->max_dir_cnt)
-    {
-        flst->dir_array = (Filenode**)realloc(flst->dir_array, sizeof(Filenode*) * flst->max_dir_cnt*2);
-        for (int i = flst->max_dir_cnt ; i < flst->max_dir_cnt*2 ; i++)
-            flst->dir_array[i] = NULL;
-        flst->max_dir_cnt *= 2;
-    }
-
-    if (flst->file_cnt >= flst->max_file_cnt)
-    {
-        
-        flst->file_array = (Filenode**)realloc(flst->file_array, sizeof(Filenode*) * flst->max_file_cnt*2);
-        flst->file_rear_table = (Filenode**)realloc(flst->file_rear_table, sizeof(Filenode*) * flst->max_file_cnt*2);
-        flst->file_cnt_table = (int*)realloc(flst->file_cnt_table, sizeof(int*) * flst->max_file_cnt*2);
-
-        for (int i = flst->max_file_cnt ; i < flst->max_file_cnt*2 ; i++)
-        {
-            flst->file_array[i] = NULL;
-            flst->file_rear_table[i] = NULL;
-            flst->file_cnt_table[i] = 0;
-        }
-        flst->max_file_cnt *= 2;
-    }
 }
 
 void print_node (Filenode* node)
@@ -3010,39 +2800,6 @@ void print_mlist (Mlist* mlist)
     }
     printf("================ End Mange List Print ===============\n");
 
-}
-
-
-
-void update_mlist (Mlist* mlist, Flist* flist, Rlist* rlist, int opt, int f_opt)
-{
-    if (flist != NULL)            //flist 로 업데이트
-    {
-        for (int i = 0 ; i < flist->dir_cnt ; i++)      //딕셔너리 업데이트
-        {
-            mappend(mlist, flist->dir_array[i]->path_name, opt, f_opt);
-        }
-
-        for (int i = 0 ; i < flist->file_cnt ; i++)     //파일 출력
-        {
-            Filenode* original = flist->file_array[i];
-            for (int x = 0 ; x < flist->file_cnt_table[i] ; x++)
-            {
-                mappend(mlist, original->path_name, 1, f_opt);
-                original = original->next;
-            }
-        }
-    }
-
-    if (rlist != NULL)           //rlist 로 업데이트
-    {  
-        Filenode* tmp = rlist->rear;
-        for (int i = 0 ; i < rlist->file_cnt ; i++)
-        {
-            mappend(mlist, tmp->path_name, 0, f_opt);
-            tmp = tmp->next;
-        }
-    }
 }
 
 void free_mlist(Mlist* mlist)
