@@ -53,12 +53,14 @@ int file_size_check (char file_names[])
     if (file_name[0] == '~')
     {
         char* find_delimeter = strrchr(file_name, '~');
-        if (strlen(ACTUAL_PATH) == 0)
-            get_actualpath();
+        if (strlen(BACKUP_PATH) == 0)
+            get_backuppath();
 
         char tmp_pwd[MAXPATHLEN] = {0,};
-        strcpy(tmp_pwd, ACTUAL_PATH);
-        // 만약 ../~ 이런 형태로 단독으로 온다면..
+        strcpy(tmp_pwd, BACKUP_PATH);
+        // 만약 ../~ 이런 형태로 단독으로 온다면.. --> 03.29 ~경로는 새로만든 id를 기준으로 하고 .는 현재디렉토리 기준으로 하도록 제작
+        char* del2 = strrchr(tmp_pwd, '/');
+        *del2 = '\0';
         if (strcmp(find_delimeter, "~") != 0) 
         {
             strcat(tmp_pwd, find_delimeter+1);
