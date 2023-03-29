@@ -75,6 +75,8 @@
  * 
  *  2023-3-25~ : flist(테이블 체이닝) -> mlist(완전연결리스트 체이닝) 방식 전환
  *              RIP : flist는 역사속으로 사라졌습니다.
+ * 
+ *              파일 노드를 받은 경로의 백업경로도 막아야됨 ex> actual_path 백업경로도 막아줘야함.
  */
 
 
@@ -160,22 +162,22 @@ typedef struct mrlist{
 int add_backup(char* backup_path, char* file_name);
 int cmd_add();
 /** 추가도구*/
-char* replace (char* original, char* rep_before, char* rep_after, int cnt);                 // 문자열 교체함수 (중요한 점은 char* a = replace() 형태로 쓸것.)
-int kmp (char* origin, char* target);                                                       // 문자열 교체함수에서 KMP 알고리즘 이용.
+char* replace (char* original, char* rep_before, char* rep_after, int cnt);  // 문자열 교체함수 (중요한 점은 char* a = replace() 형태로 쓸것.)
+int kmp (char* origin, char* target);  // 문자열 교체함수에서 KMP 알고리즘 이용.
 
 //해싱함수 : opt:0->md5, opt:1->SHA1
-char* do_hashing(FILE *f, int opt);							//option 0 :md5, 1: sha1
-char* hash_to_string(unsigned char *md);
+char* do_hashing(FILE *f, int opt);   //option 0 :md5, 1: sha1
+char* hash_to_string(unsigned char *md);  //hash 16비트 md 를 문자로 변환하는 함수.
 
 // 해시 비교함수
-int hash_compare (Filenode* a_node, Filenode* b_node);
-int hash_compare_one (Filenode* a_node, char* path_name, int opt, int f_opt);
+int hash_compare (Filenode* a_node, Filenode* b_node); //a와 b filenode 비교함수
+int hash_compare_one (Filenode* a_node, char* path_name, int opt, int f_opt);  // a filenode와 path_name 을 비교하는 함수.
 
 // 구조체 초기화 함수들.
 Filenode* new_filenode ();                                           // 기본 초기화
 Filenode* new_filenodes (char* filename, int opt, int f_opt);        // 파일 초기화, option 0: original, 1: backup
-Rlist* new_Rlist();
-MRlist* new_MRlist(Mlist* mlist, Rlist* rlist);
+Rlist* new_Rlist();                                                  // 
+MRlist* new_MRlist(Mlist* mlist, Rlist* rlist);                      //
 void print_node (Filenode* node);                                    // Filenode Unit 상태 출력
 void print_rlist (Rlist* rlist);                                     // rlist 모든 요소 출력
 void rappend (Rlist* rlist, char* file_name, int opt, int f_opt);    // Rlist 에 file_name 경로 데이터 단순 연결
@@ -191,7 +193,7 @@ int make_directory (char* dest);
 
 
 // 현재시간 _230227172231 (현재시간 생성 개체)
-char* curr_time();
+char* curr_time();     
 
 // 파일 탐색 함수.
 Rlist* original_search(char* file_name, int f_opt, int all);           // 그냥 연결리스트 구현 (동작확인완료 . 3.04)
@@ -201,16 +203,14 @@ int scandir(const char *dirp, struct dirent *** namelist,
             int(*compar)(const struct dirent**, const struct dirent **));       // scandir, alphasort 명시
 int alphasort(const struct dirent **d1, const struct dirent **d2);
 
-
 // 1. add 계열함수
-int ssu_add (char* file_name, int flag, int f_opt);
-
+int ssu_add (char* file_name, int flag, int f_opt);  // add 명령어를 수행하는 함수.
 
 // 2. remove 계열 함수.
-void ssu_remove (char* file_name, int a_flag);                                           // ssu_recover_default() 재탕
-void ssu_remove_all();                                       // scandir 사용.
-void scandir_makefile_for_remove(Mlist* mlist, char *parent_folder);
-Mlist* check_backup_file_for_remove(char* file_name, int flag_a);
+void ssu_remove (char* file_name, int a_flag);  // ssu_recover_default() 재탕
+void ssu_remove_all();   // BACKUP 경로에 있는 모든 경로를 mlist로 뽑아와서 popleft 하여 모두 지우는 함수.
+void scandir_makefile_for_remove(Mlist* mlist, char *parent_folder);  // parent_folder 를 바탕으로 mlist 안의 모든 하부디렉토리 파일을 mlist로 구성함.
+Mlist* check_backup_file_for_remove(char* file_name, int flag_a);  // 백업할 file_name을 상대적인 BACKUP_PATH 경로로 전환
 
 // 3. recover 계열 함수.
 /**
@@ -219,33 +219,33 @@ Mlist* check_backup_file_for_remove(char* file_name, int flag_a);
  *       <NEWFILE> 의 파일 디렉토리가 없다면 생성 후 덮어씀 
  *        , 만약, -d와 같이 쓰는 경우 <FILENAME> 디렉토리의 모든 백업파일을 <NEWNAME> 경로로 복구를 진행
  * 
- * 
- * 
  *  설계: ssu_recover_flag_d 함수에서 backup -> original path 경로로 전환시켜줄 데이터들을 Rlist 로 return
  *       -> -n 옵션은 는 ssu_recover_flag_d 백업할 리스트를 받아와서 modify_inversepath 를 통해 경로변경.
  * 
  *      마지막에 한꺼번에 데이터변경.
- * 
  *       : 중간고찰 -> d 옵션이 오면 무조건 directory 형태로 받는다.
 */
-int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_opt);       // replace이용. (캡슐함수)
-int modify_inversepath (Filenode* file_name, char* new_name, int flag_d);                               // file_name => new_name으로 inverse_path 변경.
-MRlist* ssu_recover_default (char* file_name, int d_flag, int f_opt);                           // d_flag 설정 여부 확인
-void print_time_and_byte (Filenode* node);                                                  // 같은 디렉토리에 대한 230227172413 15bytes 등 출력.
-void append_samefile (Mlist* mlist, char* original_file_name, int f_opt);                              // origin path 에 있는 같은 이름의 파일 백업 파일 긁어오기.
-int check_backup_file(char* file_name, int flag_d);                                              //상대적인 경로에 파일이 있는 경우 만들어줌
+int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_opt);  // replace이용. (캡슐함수)
+int modify_inversepath (Filenode* file_name, char* new_name, int flag_d);    // file_name => new_name으로 inverse_path 변경.
+MRlist* ssu_recover_default (char* file_name, int d_flag, int f_opt);   // d_flag 설정 여부 확인
+void print_time_and_byte (Filenode* node);  // 같은 디렉토리에 대한 230227172413 15bytes 등 출력.
+void append_samefile (Mlist* mlist, char* original_file_name, int f_opt);  // origin path 에 있는 같은 이름의 파일 백업 파일 긁어오기.
+int check_backup_file(char* file_name, int flag_d);  //상대적인 경로에 파일이 있는 경우 만들어줌
 void make_file_name(char* file_name);
 void scandir_makefile(char *parent_folder, char* original_path);
 
 
 
-void main_help();
+void main_help(); // 전체 help 출력
 
-/** 유지보수 함수 : */
-int scandir_filter (const struct dirent* entry);
-int basic_filter (const struct dirent* entry);
-int append_samefile2 (Mlist* mlist, char* file_path, int opt, int f_opt);
-char* scandir_filename;
+/** scandir 함수*/
+// 전역변수 scandir_filename 과 file_name 이 동일한 백업경로 파일리스트 mlist 추출 scandir filter
+int scandir_filter (const struct dirent* entry); 
+// . , .. 를 제외한 dirent 구조체를 가져오는 filter (알 수 없는 오류로 사용불가)
+int basic_filter (const struct dirent* entry);  
+// mlist 에 file_path (백업할 경로) 를 상대 백업경로로 변경하여 해당하는 모든 백업경로의 데이터를 mlist 를 가져옴
+int append_samefile2 (Mlist* mlist, char* file_path, int opt, int f_opt);   
+char* scandir_filename; // 전역변수 scandir_filename을 설정함으로 scandir_filter 로 scandir fileter로 사용
 
 /** 모두 03.27 추가 : 파일 관리자 구조체*/
 Mnode *new_mnodes(char* file_name, int opt, int f_opt);                                 // Mnode 생성자 블럭 (filenode->구조체이용)
@@ -261,14 +261,13 @@ Mlist* manage_backup_path_file();                                               
  *  return : 딕셔너리인 경우에는 스택을 활용하기 위해 char* 동적할당해서 return해줌,
  *  일반파일의 경우에는 상관없음.
  */
-char* popleft_mlist(Mlist* mlist, int option);
-void* pop_dict_mlist(Mlist* mlist);                 //mlist 딕셔너리 전용 삭제 (stack형태로 지워야하기 때문)
-
+char* popleft_mlist(Mlist* mlist, int option); // mlist 에서 딕셔너리 혹은 파일을 하나씩 삭제 : option(0: 파일 삭제, 1: 딕셔너리삭제)
+void pop_dict_mlist(Mlist* mlist); // mlist 딕셔너리 전용 삭제 (stack형태로 지워야하기 때문)
 
 /** help 함수 추가 03.15*/
-void main_help_add();
-void main_help_remove();
-void main_help_recover();
+void main_help_add(); // add help 함수 출력
+void main_help_remove(); // remove help 함수 출력
+void main_help_recover(); // recover help 함수 출력
 
 
 #ifdef DEBUG
@@ -1506,7 +1505,11 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
                 char *modify_ptr = path_name + strlen(path_name);                   //이름 수정할 포인터
                 
                 /** ★긴급 디버깅!! : 백업 폴더 중첩 방지코드*/
-                if (strstr(rlist->rear->path_name, BACKUP_PATH) != NULL)            // 03.05 : 긴급 디버깅 -> 백업폴더중첩 방지
+                char actual_backup [MAXPATHLEN+7] = {0,};
+                sprintf(actual_backup, "%s/backup", ACTUAL_PATH);
+
+                //printf("::: %s\n", actual_backup);
+                if (strstr(rlist->rear->path_name, BACKUP_PATH) != NULL || strstr(rlist->rear->path_name, actual_backup) != NULL)            // 03.05 : 긴급 디버깅 -> 백업폴더중첩 방지
                 {
                     rlist->rear = rlist->rear->next;
                     continue;
@@ -1545,7 +1548,8 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
                             continue;
                         }
                         strcpy(modify_ptr, sub_file_name);
-                        rappend(rlist, path_name, 0, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
+                        if (strstr(path_name,BACKUP_PATH) == NULL && strstr(path_name, actual_backup) == NULL)
+                            rappend(rlist, path_name, 0, f_opt);       //만약에 오류나면 modify_ptr 이 char* 으로 전달되고있음을 생각해볼것
                         free(sub_dir[i]);   
                         modify_ptr = orignal_ptr;
                     }
@@ -3010,7 +3014,7 @@ void pop_mlist (Mlist* mlist, char* delete_string)
 }
 
 
-void* pop_dict_mlist(Mlist* mlist)
+void pop_dict_mlist(Mlist* mlist)
 {
     int dir_cnt = mlist->dir_cnt;
     char** dict_stack = (char**)malloc(sizeof(char*) * dir_cnt);
