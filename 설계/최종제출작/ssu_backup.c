@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include "ssu_shared.h"
 
@@ -60,6 +61,12 @@ int main(int argc, char* argv[]){
         int status;
         int max_ = 0;
         strcpy(hash, argv[1]);
+
+
+        // 백업 디렉토리 생성.
+        get_backuppath();
+        mkdir(BACKUP_PATH, 0777);
+
         while(1)
         {
             fflush(stdin);
