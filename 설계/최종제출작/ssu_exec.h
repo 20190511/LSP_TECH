@@ -1369,8 +1369,13 @@ int ssu_add (char* file_name, int flag, int f_opt)
                     {
                         Mnode* file_array = backup_node->file_tail;
                         for (int cnt = 0 ; cnt < backup_node->file_cnt ; cnt++)
-                        {
-                            if (strcmp(file_array->filenode->file_name, cpy_node->file_name) == 0)
+                        { 
+                            char tmp_str[MAXPATHLEN] = {0,};
+                            strcpy(tmp_str, file_array->filenode->actual_path);
+                            char* cp_tok =  strrchr(tmp_str, '_');
+                            if (cp_tok != NULL)
+                                *cp_tok = '\0';
+                            if (strcmp(tmp_str, cpy_node->actual_path) == 0)
                             {
                                 Mnode* node = file_array;
                                 while (node != NULL)
@@ -1428,7 +1433,12 @@ int ssu_add (char* file_name, int flag, int f_opt)
             Mnode* file_array = backup_node->file_tail;
             for (int cnt = 0 ; cnt < backup_node->file_cnt ; cnt++)
             {
-                if (strcmp(file_array->filenode->file_name, original_node->header->file_name) == 0)
+                char tmp_str[MAXPATHLEN] = {0,};
+                strcpy(tmp_str, file_array->filenode->actual_path);
+                char* cp_tok =  strrchr(tmp_str, '_');
+                if (cp_tok != NULL)
+                    *cp_tok = '\0';
+                if (strcmp(tmp_str, original_node->header->actual_path) == 0)
                 {// 동일한 해시가 존재하기때문에 생성할 필요 없음.
                     Mnode* node = file_array;
                     while(node != NULL)
