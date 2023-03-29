@@ -77,7 +77,7 @@ int file_size_check (char file_names[])
 
     if (strlen(file_name) >= MAXPATHLEN)
     {
-        printf("%s size is %ld. It is over MAX file legnth(%d)\n", file_name,strlen(file_name), MAXPATHLEN);
+        printf("%s size is %ld. It is over MAX file legnth(%d)\n", file_name,strlen(file_name), MAXPATHLEN-1);
         return 0;
     }
 
@@ -86,7 +86,7 @@ int file_size_check (char file_names[])
     onlyfile++;
     if (strlen(onlyfile) >= MAXFILELEN)
     {
-        printf("%s size is %ld. It is over MAX file legnth(%d)\n", onlyfile,strlen(file_name), MAXFILELEN);
+        printf("%s size is %ld. It is over MAX file legnth(%d)\n", onlyfile,strlen(file_name), MAXFILELEN-1);
         return 0;
     }
 
