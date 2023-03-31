@@ -808,7 +808,11 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                     {
                         int making_check = file_cpy(file_array->filenode->path_name, file_array->filenode->inverse_path);
                         if (making_check)
+                        {
                             printf("\"%s\" backup file recover to %s\n", file_array->filenode->path_name, file_array->filenode->inverse_path);
+                            if (flag_n)
+                                rappend(rlist, file_array->filenode->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
+                        }
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
                     }
                     else
@@ -832,7 +836,12 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                             {
                                 int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                                 if (making_check)
+                                {
                                     printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
+                                    if (flag_n)
+                                        rappend(rlist, tmp_node->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
+
+                                }
                                 //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
                     
                             }
@@ -899,7 +908,11 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                             {
                                 int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                                 if(making_check)
+                                {
                                     printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
+                                    if (flag_n)
+                                        rappend(rlist, tmp_node->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
+                                }
                                 //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
                     
                             }
@@ -980,7 +993,12 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                     {
                         int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                         if(making_check)
+                        {
                             printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
+                            if (flag_n)
+                                rappend(rlist, tmp_node->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
+
+                        }
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
             
                     }
@@ -1043,7 +1061,11 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                     {
                         int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                         if (making_check)
+                        {
                             printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
+                            if (flag_n)
+                                rappend(rlist, tmp_node->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
+                        }
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
                     }
                     else
@@ -1337,6 +1359,7 @@ void print_time_and_byte (Filenode* node)
 int ssu_add (char* file_name, int flag, int f_opt)
 {
     Filenode *tmp_node = new_filenodes(file_name, 0, f_opt);
+    Mlist* manage_backup_list = new_mlist();
     if (tmp_node == NULL)
     {
         printf("%s can't be backuped\n", file_name);
@@ -1398,12 +1421,14 @@ int ssu_add (char* file_name, int flag, int f_opt)
                     {
                         printf("\"%s\" backuped\n", cpy_node->inverse_path);
                         node_file_cpy(cpy_node);
+                        mappend(manage_backup_list, cpy_node->inverse_path, 1, f_opt); //백업노드 관리
                     }
                 }
                 cpy_node = cpy_node->next;
             }
             free_rlist(original_node);
             free_mlist(backup_node);
+            free_mlist(manage_backup_list);
             free(tmp_node);
             return 0;
         }
@@ -1462,10 +1487,12 @@ int ssu_add (char* file_name, int flag, int f_opt)
         {
             printf("\"%s\" backuped\n", original_node->header->inverse_path);
             node_file_cpy(original_node->header);
+            mappend(manage_backup_list, original_node->header->inverse_path, 1, f_opt);           //백업 노드 관리
         }
 
         free_rlist(original_node);
         free_mlist(backup_node);
+        free_mlist(manage_backup_list);
     }
     free(tmp_node);
     return 1;
