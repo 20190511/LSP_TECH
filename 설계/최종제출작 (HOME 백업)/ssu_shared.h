@@ -38,7 +38,7 @@ void get_backuppath();
 //동일 유저명이 존재하는지 확인
 int exist_username();
 // /home 디렉토리를 가진 아무 User나 가져오는 함수.
-char* find_anyuser();
+char* find_anyuser(); // 여기서는 사용X
 
 char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
 char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
