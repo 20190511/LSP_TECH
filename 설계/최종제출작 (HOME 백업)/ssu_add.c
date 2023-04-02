@@ -8,7 +8,7 @@
 extern char* optarg;
 int main(int argc, char* argv[])
 {
-    //printf("your uid is %d\n", (int)getuid());            //uid 확인완료
+    //printf("your uid is %d\n", (int)getuid());            //uid ?뺤씤?꾨즺
     //ssu_add("/home/junhyeong/go", 1, 0);
     int c;
     int flag = 0;
@@ -48,10 +48,18 @@ int main(int argc, char* argv[])
     if (strlen(BACKUP_PATH) == 0)
         get_backuppath();
     
-    if(strstr(filename, BACKUP_PATH) != NULL || strcmp(filename, "/home") == 0)
+    if (!file_size_check(filename))
     {
         printf("%s can't be backuped\n", filename);
-        main_help_add();
+        exit(1);
+    }
+    get_actualpath2(filename);          //junhyeongBKS ? junhyeong? ?ㅻⅨ??諛깆뾽?섎뒗嫄?留됯린?꾪븿.
+    char tmp_name[MAXPATHLEN] = {0,};
+    strcpy(tmp_name, ACTUAL_PATH);
+    get_actualpath();                   //?ㅼ떆 junhyeong?쇰줈 蹂寃?
+    if(strstr(filename, BACKUP_PATH) != NULL || strcmp(tmp_name, ACTUAL_PATH) != 0)
+    {
+        printf("%s can't be backuped\n", filename);
         exit(1);
     }
 
@@ -60,27 +68,14 @@ int main(int argc, char* argv[])
     {
         if (access(filename, F_OK) != 0)
         {
-            printf("%s can't be backuped\n", filename);                //나중에 다 can't be beckuped 로 고칠 것.
-            main_help_add();
+            printf("%s can't be backuped\n", filename);                //?섏쨷????can't be beckuped 濡?怨좎튌 寃?
             exit(1);
         }
         else
         {
-            printf("%s is can not access\n", filename);             //나중에 다 can't be beckuped 로 고칠 것.
-            main_help_add();
+            printf("%s is can not access\n", filename);             //?섏쨷????can't be beckuped 濡?怨좎튌 寃?
             exit(1);
         }
-    }
-
-    /** filename이 filename 기준으로 backup 디렉토리랑 겹치는 경우도 종료*/
-    get_actualpath2(filename);
-    char actual_backup [MAXPATHLEN+7] = {0,};
-    sprintf(actual_backup, "%s/backup", ACTUAL_PATH);
-    if (strstr(filename, actual_backup) != NULL)
-    {
-        printf("%s can't be backuped\n", filename);
-        main_help_add();
-        exit(1);
     }
 
     int hash_num = (strcmp("md5", hash) == 0) ? 0 : 1;
@@ -91,7 +86,7 @@ int main(int argc, char* argv[])
             main_help_add();
             exit(1);
         }
-        printf("please wait .....\n");
+        //printf("please wait .....\n");
         /*
         printf("option d\n");
         printf("filename is %s\n", filename);
