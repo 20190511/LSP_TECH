@@ -38,7 +38,7 @@ void get_backuppath();
 //동일 유저명이 존재하는지 확인
 int exist_username();
 // /home 디렉토리를 가진 아무 User나 가져오는 함수.
-char* find_anyuser(); // 여기서는 사용X
+char* find_anyuser();
 
 char ACTUAL_PATH [MAXPATHLEN]; // 현재 위치 getcwd() 사용.
 char BACKUP_PATH [MAXPATHLEN]; // /home/사용자이름
@@ -69,8 +69,8 @@ int file_size_check (char file_names[])
 
     if (file_name[0] != '/' || strstr(file_name,"/..") != NULL)
         realpath(file_name, file_name);
-    get_actualpath2(file_name);                 //actual_path 재설정
-    if (strstr(file_name, "/home") == NULL || strcmp(file_name, "/home") == 0)      // 아예 /home 으로 들어온 경우 예외처리
+    get_actualpath();                 //actual_path 재설정
+    if (strstr(file_name, ACTUAL_PATH) == NULL)      // 아예 /home 으로 들어온 경우 예외처리
     {
         //printf("%s is over from /home directory\n", file_name);
         return 0;
