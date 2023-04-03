@@ -540,6 +540,8 @@ void ssu_remove_all()
 
     while (bs->file_tail != NULL || bs->file_cnt != 0)
     {
+        if (bs->file_tail == NULL)
+            break;
         char* del_name = bs->file_tail->filenode->path_name;
         //printf("%s\n", del_name);
         remove(del_name);
@@ -558,6 +560,7 @@ void ssu_remove (char* file_name, int a_flag)
     int only_backup_path_flag = 0;
     Mlist* only_backup_path;
 
+    Mlist* manage_list_bks = backup_search (BACKUP_PATH, 0, 1);     //백업 리스트 전체관리
     if (newfile == NULL)
     {
         only_backup_path = check_backup_file_for_remove(file_name, a_flag);
@@ -585,14 +588,36 @@ void ssu_remove (char* file_name, int a_flag)
             mlist = remove_file->mlist;
         }
         
+
+        if (mlist->file_tail == NULL)
+        {
+            //printf("%s can't be removed (no file)\n", file_name);
+            main_help_remove();
+            free(newfile);
+            free(manage_list_bks);
+            free_mrlist(remove_file);
+            return;
+        }
+
         while(mlist->file_tail != NULL || mlist->total_file_cnt != 0)
         {
+            if (mlist->file_tail == NULL)
+                break;
             char* del_name = mlist->file_tail->filenode->path_name;
             printf("\"%s\" backup file removed\n", del_name);
+            pop_mlist(manage_list_bks, del_name);       //백업리스트에서 삭제
             remove(del_name);
             popleft_mlist(mlist, 0);
         }
 
+        Mnode* del_dec_list = mlist->dir_tail;              // 관리 리스트 딕셔너리 삭제
+        for (int i = 0 ; i < mlist->dir_cnt ; i++)
+        {
+            if (del_dec_list == NULL)
+                break;
+            pop_mlist(manage_list_bks, del_dec_list->filenode->path_name);
+            del_dec_list = del_dec_list->next;
+        }
         pop_dict_mlist(mlist);              //딕셔너리 파일은 스택형태로 출력없이 삭제
 
     }
@@ -621,12 +646,21 @@ void ssu_remove (char* file_name, int a_flag)
             mlist = only_backup_path;
         }
 
-
+        if (mlist->file_tail == NULL)
+        {
+            //printf("%s can't be removed (no file)\n", file_name);
+            main_help_remove();
+            free(newfile);
+            free(manage_list_bks);
+            free_mrlist(remove_file);
+            return;
+        }
 
         if (mlist->file_tail->same_cnt == 1)
         {
             char* del_name = mlist->file_tail->filenode->path_name;
             printf("\"%s\" backup file removed\n", del_name);
+            pop_mlist(manage_list_bks, del_name);       //백업리스트에서 삭제 
             remove(del_name);
             popleft_mlist(mlist, 0);
             
@@ -676,12 +710,13 @@ void ssu_remove (char* file_name, int a_flag)
                     move = move->same_next;
                 Filenode* tmp_node = move->filenode;
                 printf("\"%s\" backup file removed\n", tmp_node->path_name);
-                //백업파일 삭제 추가
+                pop_mlist(manage_list_bks, tmp_node->path_name);      //백업파일 삭제 추가
                 remove(tmp_node->path_name);
-                pop_mlist(mlist, tmp_node->path_name);              //삭제하고 백업파일 리스트에서 삭제
             }
         }
     }
+
+    free_mlist(manage_list_bks);
 
     if (only_backup_path_flag)
     {
@@ -748,7 +783,6 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
     int flg_d = flag_d;
     int flg_n = flag_n;
     
-
     if (flg_n)
         get_actualpath2(file_name);
 
@@ -776,6 +810,13 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
             recover_list = ssu_recover_default(newnode->path_name, flg_d, f_opt);
             Rlist* rlist = recover_list->rlist;
             Mlist* mlist = recover_list->mlist;
+            if (mlist->file_cnt == 0)
+            {
+                main_help_recover();
+                free(newnode);
+                free_mrlist(recover_list);
+                exit(1);
+            }
             char time_default[TIME_TYPE] = {0,};
             char** prev_inverse_path;
             if (flg_n)
@@ -806,11 +847,14 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                 {
                     if (!hash_compare_one(file_array->filenode, file_array->filenode->inverse_path, 0, f_opt)) // 복사.
                     {
+                        int exist_check = 0;
+                        if (access(file_array->filenode->inverse_path, F_OK) == -1)
+                            exist_check = 1;
                         int making_check = file_cpy(file_array->filenode->path_name, file_array->filenode->inverse_path);
                         if (making_check)
                         {
                             printf("\"%s\" backup file recover to %s\n", file_array->filenode->path_name, file_array->filenode->inverse_path);
-                            if (flag_n)
+                            if (exist_check)
                                 rappend(rlist, file_array->filenode->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
                         }
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
@@ -834,11 +878,14 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                         {
                             if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
                             {
+                                int exist_check = 0;
+                                if (access(tmp_node->inverse_path, F_OK) == -1)
+                                    exist_check = 1;
                                 int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                                 if (making_check)
                                 {
                                     printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
-                                    if (flag_n)
+                                    if (exist_check)
                                         rappend(rlist, tmp_node->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
 
                                 }
@@ -889,13 +936,10 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                         getnum--;
                         if(getnum == -1) //<- exit() 들어가면됨 : 해당 파일은 건너띄는것으로 재설정
                         {
-                            /*
+                            
                             free(newnode);
                             free_mrlist(recover_list);
-                            return 1;
-                            */
-                           file_array = file_array->next;
-                           continue;
+                            return 0;
                         }
                         else
                         {
@@ -906,11 +950,14 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                             strcpy(time_default, tmp_node->back_up_time);
                             if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
                             {
+                                int exist_check = 0;
+                                if (access(tmp_node->inverse_path, F_OK) == -1)
+                                    exist_check = 1;
                                 int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                                 if(making_check)
                                 {
                                     printf("\"%s\" backup file recover to %s\n", tmp_node->path_name, tmp_node->inverse_path);
-                                    if (flag_n)
+                                    if (exist_check)
                                         rappend(rlist, tmp_node->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
                                 }
                                 //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
@@ -945,6 +992,13 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
         recover_list = ssu_recover_default(newnode->path_name, flg_d, f_opt);
         Rlist* rlist = recover_list->rlist;
         Mlist* mlist = recover_list->mlist;
+        if (mlist->file_cnt == 0)
+        {
+            main_help_recover();
+            free(newnode);
+            free_mrlist(recover_list);
+            exit(1);
+        }
         char time_default[TIME_TYPE] = {0,};
         char* prev_inverse_path;
         if (flg_n)
@@ -968,9 +1022,16 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
             Filenode* tmp_node = mlist->file_tail->filenode;
             if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
             {
+                int exist_check = 0;
+                if (access(tmp_node->inverse_path, F_OK) == -1)
+                    exist_check = 1;
                 int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                 if(making_check)
+                {
                     printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
+                    if (exist_check)
+                        rappend(rlist, tmp_node->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
+                }
                 //백업복사해줘야함 (해시 비교 위의 두 문자 단우위로 비교하면될듯.)
             }
             else
@@ -991,13 +1052,15 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                 {
                     if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
                     {
+                        int exist_check = 0;
+                        if (access(tmp_node->inverse_path, F_OK) == -1)
+                            exist_check = 1;
                         int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
                         if(making_check)
                         {
                             printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
-                            if (flag_n)
+                            if (exist_check)
                                 rappend(rlist, tmp_node->inverse_path, 0,f_opt); //새롭게 생성된 파일 추가
-
                         }
                         //백업복사해줘야함 (해시 비교 위의 두 문자 단위로 비교하면될듯.)
             
@@ -1048,7 +1111,7 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                 {
                     free(newnode);
                     free_mrlist(recover_list);
-                    return 1;
+                    return 0;
                 }
                 else
                 {
@@ -1059,8 +1122,11 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
                     strcpy(time_default, tmp_node->back_up_time);
                     if (!hash_compare_one(tmp_node, tmp_node->inverse_path, 0, f_opt)) // 복사.
                     {
+                        int exist_check = 0;
+                        if (access(tmp_node->inverse_path, F_OK) == -1)
+                            exist_check = 1;
                         int making_check = file_cpy(tmp_node->path_name, tmp_node->inverse_path);
-                        if (making_check)
+                        if (exist_check)
                         {
                             printf("\"%s\" backup file recover to \"%s\"\n", tmp_node->path_name, tmp_node->inverse_path);
                             if (flag_n)
@@ -1215,6 +1281,8 @@ void append_samefile (Mlist* mlist, char* original_file_name, int f_opt)
         *inverse_ptr = '/';
         inverse_ptr++;
     }
+    else
+        return;
     for (int i = 0 ; i < file_cnt ; i++)
     {
         char dir_name[MAXFILELEN]; 
@@ -1359,7 +1427,7 @@ void print_time_and_byte (Filenode* node)
 int ssu_add (char* file_name, int flag, int f_opt)
 {
     Filenode *tmp_node = new_filenodes(file_name, 0, f_opt);
-    Mlist* manage_backup_list = new_mlist();
+    Mlist* manage_backup_list = backup_search (BACKUP_PATH, 0, 1); 
     if (tmp_node == NULL)
     {
         printf("%s can't be backuped\n", file_name);
@@ -1375,7 +1443,7 @@ int ssu_add (char* file_name, int flag, int f_opt)
     if (d_flag)       //해당경로로 모두 탐색.
     {
         if (S_ISREG(tmp_node->file_stat.st_mode))
-        {
+        { 
             d_flag = 0;
         }
         if (S_ISDIR(tmp_node->file_stat.st_mode))
@@ -1426,9 +1494,24 @@ int ssu_add (char* file_name, int flag, int f_opt)
                 }
                 cpy_node = cpy_node->next;
             }
+            // 임시적으로 저장한 mlist 업데이트 --> 백업경로를 전부 불러와서 안해줘도됨.
+            /*
+            for (int i = 0 ; i < manage_backup_list->total_file_cnt ; i++)
+            {
+                char bks_file_path [MAXPATHLEN] = {0,};
+                if (manage_backup_list->file_tail == NULL)
+                    break;
+                strcpy(bks_file_path, manage_backup_list->file_tail->filenode->path_name);
+                popleft_mlist(manage_backup_list, 0);
+                mappend(backup_node, bks_file_path, 1, f_opt);
+            }
+            */
+            //링크드리스트로 관리되고 있는 backup_node + original_node
+            free_mlist(manage_backup_list);
+
+
             free_rlist(original_node);
             free_mlist(backup_node);
-            free_mlist(manage_backup_list);
             free(tmp_node);
             return 0;
         }
@@ -1656,7 +1739,6 @@ Rlist* original_search(char* file_name, int f_opt, int all)           // 그냥 
  */
 Mlist* backup_search(char* file_name, int f_opt, int all)             // 해시 체이닝 구현.
 {
-    
     Filenode* rootnode = new_filenodes(file_name, 1, f_opt);
     Mlist* mlist = new_mlist();
     if (rootnode == NULL)
@@ -2063,7 +2145,7 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
     {
         if (strstr(filename, "/home") == NULL)                                                       // /home 을 벗어난 파일은 애초에 오류임.
         {
-            printf("%s is over from /home directory\n", filename);
+            //printf("%s is over from /home directory\n", filename);
             free(newfile);
             return NULL;
         }
@@ -2985,7 +3067,7 @@ void pop_mlist (Mlist* mlist, char* delete_string)
                     }
                     else
                     {
-                        if (prevnode->same_next != NULL)
+                        if (move->same_next != NULL)
                         {
                             prevnode->next = move->same_next;    //2번
                             
