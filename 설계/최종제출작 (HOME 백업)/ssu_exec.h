@@ -527,7 +527,7 @@ void ssu_remove_all()
 {
     if (strlen(BACKUP_PATH) == 0)
         get_backuppath();
-    Mlist* bs = backup_search (BACKUP_PATH, 0, 1);
+    Mlist* bs = backup_search (BACKUP_PATH, -1, 1);
     int del_cnt = 0;
     if (bs->file_cnt == 0 && bs->dir_cnt == 1)                                  //백업 파일 0개이면 프롬포트 출력
     {  
@@ -535,8 +535,8 @@ void ssu_remove_all()
         free_mlist(bs);
         return;
     }
-    printf("backup directory cleared(%d regular files and %d subdirectories totally)\n",
-                bs->total_file_cnt, bs->dir_cnt - 1);
+    int total_file_cnts = bs->total_file_cnt;
+    int total_dir_cnts = bs->dir_cnt - 1;
 
     while (bs->file_tail != NULL || bs->file_cnt != 0)
     {
@@ -550,6 +550,8 @@ void ssu_remove_all()
     }
 
     pop_dict_mlist(bs); //백업 경로의 디렉토리는 스택형태로 삭제되기 위하여 제작 (상위폴더보다 하위폴더가 먼저 지워지게하기위함.)
+    printf("backup directory cleared(%d regular files and %d subdirectories totally)\n",
+                total_file_cnts, total_dir_cnts);
     free_mlist(bs);
 }
 
@@ -560,7 +562,7 @@ void ssu_remove (char* file_name, int a_flag)
     int only_backup_path_flag = 0;
     Mlist* only_backup_path;
 
-    Mlist* manage_list_bks = backup_search (BACKUP_PATH, 0, 1);     //백업 리스트 전체관리
+    Mlist* manage_list_bks = backup_search (BACKUP_PATH, -1, 1);     //백업 리스트 전체관리
     if (newfile == NULL)
     {
         only_backup_path = check_backup_file_for_remove(file_name, a_flag);
@@ -843,6 +845,11 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
             Mnode* file_array = mlist->file_tail;
             for (int i = 0 ; i < mlist->file_cnt ; i++)
             {
+                if (file_array->filenode->inverse_path == NULL)
+                {
+                    file_array = file_array->next;
+                    continue;
+                }
                 if (file_array->same_cnt == 1)
                 {
                     if (!hash_compare_one(file_array->filenode, file_array->filenode->inverse_path, 0, f_opt)) // 복사.
@@ -1016,6 +1023,12 @@ int ssu_recover (char* file_name, int flag_d, int flag_n, char* new_name, int f_
             get_actualpath2(file_name);         //file_name으로 ACTUAL_PATH 다시복귀
         }
 
+        if(mlist->file_tail->filenode->inverse_path == NULL)            //파일 크기가 넘어가서 NULL이 오는경우 예외처리
+        {
+            free(newnode);
+            free_mrlist(recover_list);
+            exit(1);
+        }
 
         if (mlist->file_tail->same_cnt == 1)
         {
@@ -1427,7 +1440,7 @@ void print_time_and_byte (Filenode* node)
 int ssu_add (char* file_name, int flag, int f_opt)
 {
     Filenode *tmp_node = new_filenodes(file_name, 0, f_opt);
-    Mlist* manage_backup_list = backup_search (BACKUP_PATH, 0, 1); 
+    Mlist* manage_backup_list = backup_search (BACKUP_PATH, -1, 1);         // 벡업디렉토리 파일 연결리스트관리
     if (tmp_node == NULL)
     {
         printf("%s can't be backuped\n", file_name);
@@ -1489,7 +1502,7 @@ int ssu_add (char* file_name, int flag, int f_opt)
                     {
                         printf("\"%s\" backuped\n", cpy_node->inverse_path);
                         node_file_cpy(cpy_node);
-                        mappend(manage_backup_list, cpy_node->inverse_path, 1, f_opt); //백업노드 관리
+                        mappend(manage_backup_list, cpy_node->inverse_path, 1, -1); //백업노드 관리
                     }
                 }
                 cpy_node = cpy_node->next;
@@ -1507,9 +1520,8 @@ int ssu_add (char* file_name, int flag, int f_opt)
             }
             */
             //링크드리스트로 관리되고 있는 backup_node + original_node
+            //print_mlist(manage_backup_list);
             free_mlist(manage_backup_list);
-
-
             free_rlist(original_node);
             free_mlist(backup_node);
             free(tmp_node);
@@ -1570,7 +1582,7 @@ int ssu_add (char* file_name, int flag, int f_opt)
         {
             printf("\"%s\" backuped\n", original_node->header->inverse_path);
             node_file_cpy(original_node->header);
-            mappend(manage_backup_list, original_node->header->inverse_path, 1, f_opt);           //백업 노드 관리
+            mappend(manage_backup_list, original_node->header->inverse_path, 1, -1);           //백업 노드 관리
         }
 
         free_rlist(original_node);
@@ -1869,6 +1881,10 @@ int make_directory (char* dest)
         if (token_dest != NULL)             // strtok 값이 NULL 이라는건 마지막파일이라는 의미/
         {
             struct stat statbuf;
+            if (access(tmp_path, F_OK) == 0)            //디렉토리랑 이름이 같은 파일이 존재할 시 해당파일 삭제하고 진행
+            {
+                remove(tmp_path);
+            }
             if (access(tmp_path, F_OK) != 0)
             {
                 if (mkdir(tmp_path, DIRECTRY_ACCESS) < 0)
@@ -2035,7 +2051,7 @@ void rappend (Rlist* rlist, char* file_name, int opt, int f_opt)
     Filenode* newnode = new_filenodes(file_name, opt, f_opt);
     if (newnode == NULL)
     {
-        printf("this filename %s is can't be opened\n", file_name);
+        printf("%s can't be backuped\n", file_name);
         return;
     }
 
@@ -2276,15 +2292,15 @@ Filenode* new_filenodes (char* filename, int opt, int f_opt)
         }
     }
    
-    //파일용량 (MAX_FILE_SIZE : 100000000) 로 제한 : 안 해주면 4기가짜리 파일 읽는데 시간 엄청걸림 (해싱+복사 하는 과정에 시간 너무써서 버리는걸로..)
+    /*
     if (newfile->file_stat.st_size > MAX_FILE_SIZE)
     {
         printf("%s file size is %ld, pass\n", newfile->path_name, newfile->file_stat.st_size);
         free(newfile);
         return NULL;
     }    
-
-    if (S_ISDIR(newfile->file_stat.st_mode))                                //해당 파일이 디렉토리면 해시를 구하지않음.
+    */
+    if (S_ISDIR(newfile->file_stat.st_mode) || f_opt == -1)                                //해당 파일이 디렉토리면 해시를 구하지않음., f_opt==-1도 해시구하지않음.
         return newfile;
 
     FILE *fp_hash = fopen(newfile->path_name, "r");
