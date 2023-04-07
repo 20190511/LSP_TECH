@@ -80,8 +80,6 @@ void score_students();
 /**
  * 학생 답 채점함수
  * fd := csv 파일디스크립터, id := 학번 (학생학번)
- * 
- * 
  * score_table 배열 안의 점수만큼 채점을 한다.
  * 학생 한 명에대해서 점수총점을 구해서 csv file에 추가.
  * 
@@ -231,7 +229,7 @@ char id_table[SNUM][10];
 
 char stuDir[BUFLEN];
 char ansDir[BUFLEN];
-char errorDir[BUFLEN];
+char errorDir[BUFLEN];					/// -e 옵션 에러 디렉토리.
 char threadFiles[ARGNUM][FILELEN];
 char iIDs[ARGNUM][FILELEN];
 
@@ -242,7 +240,7 @@ int iOption = false;
 
 void ssu_score(int argc, char *argv[])
 {
-	char saved_path[BUFLEN];
+	char saved_path[BUFLEN];			/// 프로그램이 실행된 디렉토리 저장.
 	int i;
 
 	for(i = 0; i < argc; i++){
@@ -282,19 +280,25 @@ void ssu_score(int argc, char *argv[])
 	}
 	getcwd(ansDir, BUFLEN);
 
-	chdir(saved_path);
+	/// 수정 saved_path-> ansDir
+	chdir(ansDir);
 
 	set_scoreTable(ansDir);
 	set_idTable(stuDir);
 
 	if(mOption)
-		do_mOption();
+		do_mOption();			
 
 	printf("grading student's test papers..\n");
-	score_students();
+	score_students();		/// 실제 -p 옵션으로 보임
+
+
+	///내가 임의로 생성.
+	chdir(saved_path);	
 
 	if(iOption)
 		do_iOption(iIDs);
+
 
 	return;
 }
@@ -488,7 +492,7 @@ int is_exist(char (*src)[FILELEN], char *target) // 학번이 IDS에 존재하�
 void set_scoreTable(char *ansDir) // score_table.csv 설정
 {
 	char filename[FILELEN]; // $(PWD)/score_table.csv
-
+		/// chdir(ansDir);
 	sprintf(filename, "%s", "score_table.csv");
 
 	if(access(filename, F_OK) == 0) // score_table.csv 파일이 존재 할 경우
@@ -715,7 +719,7 @@ void score_students() // score.csv 생성
 	char tmp[BUFLEN];
 	int size = sizeof(id_table) / sizeof(id_table[0]); // id_table 테이블 데이터 개수
 
-	if((fd = creat("score.csv", 0666)) < 0){
+	if((fd = creat("score.csv", 0666)) < 0){			/// n 옵션부터 만들 것!
 		fprintf(stderr, "creat error for score.csv");
 		return;
 	}
@@ -732,6 +736,8 @@ void score_students() // score.csv 생성
 		score += score_student(fd, id_table[num]); // 학생의 점수 계산
 	}
 
+	/// sOption 존재 시 아래에 정렬 함수 + for 문 출력함수 생성
+	
 	printf("Total average : %.2f\n", score / num);
 
 	close(fd);
@@ -1019,6 +1025,9 @@ double compile_program(char *id, char *filename) // 프로그램 문제 컴파�
 		if(eOption) // -e 옵션을 주었을 때 ERROR/2020XXXX/X_error.txt로 저장
 		{
 			sprintf(tmp_e, "%s/%s", errorDir, id); // ERROR/2020XXXX
+			
+			realpath(tmp_e, tmp_e);		/// 임시방편 realpath
+			
 			if(access(tmp_e, F_OK) < 0) // 디렉토리 접근이 가능하지 않을 경우(디렉토리가 존재하지 않을 경우)
 				mkdir(tmp_e, 0755);
 
@@ -1240,9 +1249,12 @@ void print_usage() // -h 옵션
 {
 	printf("Usage : ssu_score <STUDENTDIR> <TRUEDIR> [OPTION]\n");
 	printf("Option : \n");
-	printf(" -m                modify question's score\n");
-	printf(" -e <DIRNAME>      print error on 'DIRNAME/ID/qname_error.txt' file \n");
-	printf(" -t <QNAMES>       compile QNAME.C with -lpthread option\n");
-	printf(" -i <IDS>          print ID's wrong questions\n");
-	printf(" -h                print usage\n");
+	printf(" -n <CSVFILENAME>\n");
+	printf(" -m\n");
+	pritnf(" -c [STUDENTIDS ...]\n");
+	pritnf(" -p [STUDENTIDS ...]\n");
+	pritnf(" -t [QNAMES ...]\n");
+	pritnf(" -s <CATEGORY> <1|-1>\n");
+	pritnf(" -e <DIRNAME>\n");
+	pritnf(" -h\n");
 }
