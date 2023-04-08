@@ -55,6 +55,33 @@ struct ssu_scoreTable{
 	char qname[FILELEN];
 	double score;
 };
+
+
+typedef struct sclist {
+    char qname[FILELEN];        // 문제번호
+    double cur_score;              // 현 점수
+    double score;                  // 원래배점
+    struct sclist* file_next;        // 다음에 연결된 문제
+}Sclist;
+
+typedef struct stdnode {
+    char id_name[10];           //학번
+    double sums;                //총합
+
+    int file_cnt;              //연결된 문제개수
+    struct stdnode* next;              // 다음 학번
+    Sclist* list_head;        // head -> .. -> .. -> tail ->NULL 형태로 연결
+    Sclist* list_tail;
+}Snode;
+
+
+typedef struct slist {
+    int id_cnt;
+    Snode* head;            //header -> ... -> ... -> tail
+    Snode* tail;  
+}StdList;
+
+
 /**
  *  04.04 
  * 		[score_table.csv 관련]
@@ -88,7 +115,7 @@ void score_students();
  * 학생 한 명에대해서 점수총점을 구해서 csv file에 추가.
  * 
 */
-double score_student(int fd, char *id);
+double score_student(int fd, char *id, Snode* std_node);
 
 /**
  *  $(PWD)/score.csv 제목 데이터 (score_table 을 이용하여 테이블 개수를 구하고)
@@ -236,7 +263,8 @@ char ansDir[BUFLEN];
 char errorDir[BUFLEN];					/// -e 옵션 에러 디렉토리.
 char threadFiles[ARGNUM][FILELEN];
 char iIDs[ARGNUM][FILELEN];
-int iTDs_check = false;
+int iIDs_check = false;
+int iIDs_cnt = 0;
 
 int eOption = false;
 int tOption = false;
@@ -244,7 +272,11 @@ int mOption = false;
 
 
 
-/// junhyeong 설정 변수들
+/// 20190511, 배준형 |  새로만든 설정 변수/함수 들
+
+
+
+
 int hOption = false;
 int cOption = false;
 int pOption = false;
@@ -254,7 +286,27 @@ int do_nOption (char* pathname);
 int realpathS(char* pathname, size_t size);
 int csv_check (char* pathname);
 int mkdirs(char* pathname);							//디렉토리 생성함수.
-char ansDir_n[BUFLEN];
+char csvDir[BUFLEN];
+int sortType[2];
+
+
+Sclist* new_sclists (char* qname, double curS); //sclist 초기화함수
+Sclist* new_sclistss (char* qname, double curS, double s); //문제 배점 붙은 Sclist 초기화함수
+Snode* new_stdnode (char* id); //id 로 Snode 초기화함수
+StdList* new_stdlist(); //stdlist 초기화함수
+Snode* append_list (StdList* list, char* id);  // list 에 해당 id로 Snode 생성, return으로 append한 구조체 반환
+void print_list (StdList* list);
+void print_score (Snode* node); // Sclist 문제 요소 출력 (맞은문제, 문제배점)
+int append_score(Snode* node, char* qname, double cur_score, double score);   // Snode 에 문제 구조체 Sclist append.
+double find_score (char* qname);  // qname 과 일치하는 score 원래의 배점을 score_table 로부터 찾기
+int swap_list (StdList* list, Snode* p, Snode* a, Snode* b);  // 버블 정렬에 필요한 a <-> b 링크드리스트 구조 변경
+void sort_descentS(StdList* list); //list 의 sums(총함) 내림차순으로 정렬(버블sort)     
+void sort_aescendS(StdList* list); //list 의 sums(총함) 오름차순으로 정렬(버블sort)
+void sort_descentI(StdList* list); //list 의 id (학번) 내림차순으로 정렬(버블sort)
+void sort_aescendI(StdList* list); //list 의 id (학번) 오름차순으로 정렬(버블sort)
+void sort_manager(StdList* list, int type, int updown);     //sorting 관리 구조체
+void print_wrongL (Snode* node); // node 안의 틀린문제들 요소 출력
+int write_sort (StdList* list, int fd);  // 정렬된 리스트를 출력
 
 
 void ssu_score(int argc, char *argv[])
@@ -273,26 +325,28 @@ void ssu_score(int argc, char *argv[])
 
 
 	memset(saved_path, 0, BUFLEN);					// 프로그램이 시작된 위치 saved_path 기록.
-	/*
-	if(argc >= 3 && strcmp(argv[1], "-i") != 0){
+
+	if(argc >= 3){
 		strcpy(stuDir, argv[1]);
+		realpathS(stuDir, BUFLEN);
 		strcpy(ansDir, argv[2]);
+		realpathS(ansDir, BUFLEN);
 	}
-	*/
+	
 
 	if(!check_option(argc, argv))
-		exit(1);
+		return;
 
 	if (hOption && (nOption || mOption || cOption || pOption || sOption || tOption || eOption)) 		/// hOption 과 다른 옵션 같이오는 경우 예외처리
-		exit(1);
+		return;
 	
 	if (pOption && sOption) ///p옵션과 s 옵션이 같이오는 경우 
-		exit(1);
+		return;
 
 	if (hOption)
 	{
 		print_usage();
-		return;
+		exit(1);
 	}
 
 	/*
@@ -318,18 +372,25 @@ void ssu_score(int argc, char *argv[])
 		return;
 	}
 	getcwd(ansDir, BUFLEN);    							/// ans_dir <-- <ANS_DIR> 복사
+	
 
 
 	/// 1. n 옵션 (ans_dir 변경)
 	if (nOption)
-		do_nOption(ansDir_n);		//ansDir_n 에 -n 옵션 디렉토리 저장.
+	{
+		chdir(saved_path);			/// 현재 자신 경로로 상대경로를 받기 때문
+		if(!do_nOption(csvDir))		//csvdir 에 -n 옵션 디렉토리 저장.
+			return;
+	}
+	else
+	{
+		sprintf(csvDir, "%s/%s", ansDir, "score.csv"); /// 복사 디렉토리 생성
+	}
 
 	/// 수정 saved_path-> ansDir
 	chdir(ansDir);
-
-	set_scoreTable(ansDir);
-	set_idTable(stuDir);
-
+	set_scoreTable(ansDir);				/// score Table은 이미 존재하지 않으면 에러처리
+	
 	if(mOption)
 	{
 		char filename[BUFLEN] = {0,};
@@ -338,8 +399,35 @@ void ssu_score(int argc, char *argv[])
 			return;
 		do_mOption();			
 	}
+		
+
+	set_idTable(stuDir);
+
+	/// -p, -c 옵션 테이블 체크
+	if (pOption || cOption)
+	{
+		for (int idx ; idx < iIDs_cnt ; idx++)
+		{
+			int pc_check = 0;
+			for (int idx_y = 0 ; idx_y < sizeof(id_table) / sizeof(id_table[0]) ; idx_y++)
+			{
+				if (!strcmp(iIDs[idx], id_table[idx_y]))
+				{
+					pc_check = 1;
+					continue;
+				}
+			}
+			
+			if (pc_check == 0)		// 인자로 받은 학번이 없는 경우 에러처리
+			{
+				return;
+			}
+			pc_check = 0;
+		}
+	}
 
 	printf("grading student's test papers..\n");
+	setbuf(stdout, NULL);
 	score_students();		/// 실제 -p 옵션으로 보임
 
 
@@ -367,7 +455,8 @@ int check_option(int argc, char *argv[])
 				nOption = true;
 				if (optarg == NULL)			// 인자가 없는 경우 예외처리
 					return false;
-				strcpy(ansDir_n, optarg);
+				strcpy(csvDir, optarg);
+				break;
 			case 'c':
 				cOption = true;
 				i = optind;
@@ -377,13 +466,14 @@ int check_option(int argc, char *argv[])
 						printf("Maximum Number of Argument Exceeded. :: %s\n", argv[i]);
 					else
 					{
-						if (iTDs_check == true)		// 인자를 중복으로 받은 경우 예외처리
+						if (j == 0 && iIDs_check)		// 인자를 중복으로 받은 경우 예외처리
 						{
-							iTDs_check = -1;
+							iIDs_check = -1;
 							return false;
 						}
 						strcpy(iIDs[j], argv[i]);
-						iTDs_check = true;
+						iIDs_check = true;
+						iIDs_cnt = j+1;
 					}
 					i++;
 					j++;
@@ -391,7 +481,7 @@ int check_option(int argc, char *argv[])
 				break;
 
 			case 'p':
-				cOption = true;
+				pOption = true;
 				i = optind;
 				j = 0;
 				while(i < argc && argv[i][0] != '-'){
@@ -399,13 +489,14 @@ int check_option(int argc, char *argv[])
 						printf("Maximum Number of Argument Exceeded. :: %s\n", argv[i]);
 					else
 					{
-						if (iTDs_check == true)		// 인자를 중복으로 받은 경우 예외처리
+						if (j == 0 && iIDs_check)		// 인자를 중복으로 받은 경우 예외처리
 						{
-							iTDs_check = -1;
+							iIDs_check = -1;
 							return false;
 						}
 						strcpy(iIDs[j], argv[i]);
-						iTDs_check = true;
+						iIDs_check = true;
+						iIDs_cnt = j;
 					}
 					i++;
 					j++;
@@ -416,14 +507,37 @@ int check_option(int argc, char *argv[])
 				break;
 			case 's':
 				sOption = true;
-				break;
+				i = optind;
+				if (i+2 < argc && argv[i][0] != '-')
+					return false; 
+				if (argc < i+2 || strlen(argv[i]) == 0 || strlen(argv[i+1]) == 0)	// 인자처리 매끄럽지 않으면 에러처리
+					return false;
 
+				if (!strcmp(argv[i], "stdid") | !strcmp(argv[i], "score"))
+				{
+					if (!strcmp(argv[i], "stdid"))
+						sortType[0] = 0;
+					if (!strcmp(argv[i], "score"))
+						sortType[0] = 1;
+				}
+				else // 첫 인자가 stdid 나 score 가 아니면 예외처리
+					return false;
+
+				if (!strcmp(argv[i+1], "1") || !strcmp(argv[i+1], "-1"))
+				{
+					sortType[1] = atoi(argv[i+1]);
+				}
+				break;
 			case 'e':
 				eOption = true;
 				strcpy(errorDir, optarg);
-
+				realpathS(errorDir, BUFLEN); 			/// 상대경로 --> 절대경로화
 				if(access(errorDir, F_OK) < 0)
+				{
+					if (mkdirs(errorDir) < 0)
+						return false;
 					mkdir(errorDir, 0755);
+				}
 				else{
 					rmdirs(errorDir);
 					mkdir(errorDir, 0755);
@@ -451,8 +565,13 @@ int check_option(int argc, char *argv[])
 			case ':':
 				return false;
 			case '?':
-				printf("Unkown option %c\n", optopt);
-				return false;
+				if (optopt == '1' && sOption)
+					return true;
+				else
+				{
+					printf("Unkown option %c\n", optopt);
+					return false;
+				}
 		}
 	}
 
@@ -472,9 +591,8 @@ int do_nOption (char* pathname)
 	if (!csv_check(tmpP))			/// csv 파일 아닌 경우 삭제
 		return false;
 
-
-	strcpy(ansDir, tmpP);
-	mkdirs(ansDir); 			/// ansDir 부모디렉토리까지 디렉토리 생성.
+	strcpy(csvDir, tmpP);
+	mkdirs(tmpP); 			/// ansDir 부모디렉토리까지 디렉토리 생성.
 	return true;
 }
 
@@ -534,7 +652,7 @@ int realpathS(char* pathname, size_t size)
 {
     char tmp [MAXPATHLEN*2] = {0,};
     char home [MAXPATHLEN] = {0,};
-
+	char buf [MAXPATHLEN*2] = {0,};
     strcpy(tmp, pathname); 
     if (strstr(pathname, "~/") != NULL || !strcmp(pathname, "~"))
     {
@@ -547,7 +665,36 @@ int realpathS(char* pathname, size_t size)
         char *tok_ptr = strrchr(pathname, '~');
         sprintf(tmp, "%s%s", home_path, ++tok_ptr);
     }
-    realpath(tmp, tmp);
+
+
+    if (access(tmp, F_OK) != 0)
+    {
+        // 해당 경로에 파일이 존재하지 않으면 realpath 사용안됨.
+        char pwds[MAXPATHLEN] = {0,};
+        getcwd(pwds, MAXPATHLEN);
+        strcpy(buf, tmp);
+        char* ptr2 = tmp;
+        if (pathname[0] != '/' && strncmp(pathname, "./", 2) && strncmp(pathname, "../",3))
+        {
+            /* //생각해보니 .. , . 들어가있어도 상관없음 (이거도 디렉토리명이잖어)
+            if (!strncmp(pathname, "./", 2))
+            {
+                realpath("./", pwds);
+                ptr2 += strlen("./");
+            }
+            if (!strncmp(pathname, "../",3))
+            {
+                realpath("../", pwds);
+                ptr2 += strlen("../");
+            }
+            */
+            sprintf(buf, "%s/%s", pwds, ptr2);       
+        }
+    }
+    else
+        realpath(tmp, buf);
+	strcpy(tmp, buf);
+
 
     if (strlen(tmp) >= MAXPATHLEN || strlen(tmp) <= 0)
     {
@@ -641,6 +788,11 @@ void do_mOption(char *ansDir)
 		for(i=0; i < sizeof(score_table) / sizeof(score_table[0]); i++){
 			strcpy(ptr, score_table[i].qname);
 			ptr = strtok(ptr, ".");
+			if (ptr == NULL)		// 찾는 문제가 없는 경우 break;
+			{
+				fprintf(stderr, "your number is wrong\n");
+				exit(1);	
+			}
 			if(!strcmp(ptr, modiName)){
 				printf("Current score : %.2f\n", score_table[i].score);
 				printf("New score : ");
@@ -913,31 +1065,56 @@ void score_students() // score.csv 생성
 	char tmp[BUFLEN];
 	int size = sizeof(id_table) / sizeof(id_table[0]); // id_table 테이블 데이터 개수
 
-	if((fd = creat("score.csv", 0666)) < 0){			/// n 옵션부터 만들 것!
+	if((fd = creat(csvDir, 0666)) < 0){			/// n 옵션부터 만들 것!
 		fprintf(stderr, "creat error for score.csv");
 		return;
 	}
-	write_first_row(fd); // 테이블 제목 행 생성(문제 번호)
+	StdList* stdL = NULL;
+	Snode* stdnode = NULL;
+	if (sOption || pOption)	// s 옵션, p 옵션 존재 시 리스트 생성
+	{
+		stdL = new_stdlist();
+	}
+
+	if (!sOption)
+		write_first_row(fd); // 테이블 제목 행 생성(문제 번호)
+
 
 	for(num = 0; num < size; num++)
 	{
 		if(!strcmp(id_table[num], "")) // 학생 테이블 내용이 존재하지 않을 경우
 			break;
 
-		sprintf(tmp, "%s,", id_table[num]); // tmp = 2020XXXX
-		write(fd, tmp, strlen(tmp));  // score.csv -> 2020xxxx,
+		if (sOption || pOption)
+		{
+			stdnode = append_list(stdL, id_table[num]);
+		}
 
-		score += score_student(fd, id_table[num]); // 학생의 점수 계산
+		if (!sOption)
+		{
+			sprintf(tmp, "%s,", id_table[num]); // tmp = 2020XXXX
+			write(fd, tmp, strlen(tmp));  /// mOption 없는 경우에는 바로 출력
+		}
+
+		score += score_student(fd, id_table[num], stdnode); // 학생의 점수 계산
 	}
 
-	/// sOption 존재 시 아래에 정렬 함수 + for 문 출력함수 생성
-	
-	printf("Total average : %.2f\n", score / num);
+	/// cOption 존재 시 아래에 정렬 함수 + for 문 출력함수 생성
+	if (cOption)
+		printf("Total average : %.2f\n", score / num);
+	printf("result saved.. (%s)\n", csvDir);
+	if (eOption)
+		printf("error saved.. (%s)\n", errorDir);
 
+	if (sOption)
+	{
+		sort_manager(stdL, sortType[0], sortType[1]);
+		write_sort(stdL, fd);
+	}
 	close(fd);
 }
 
-double score_student(int fd, char *id) // 학생들의 답안 채점
+double score_student(int fd, char *id, Snode* std_node) // 학생들의 답안 채점
 {
 	int type;
 	double result; // 채점 결과, true:정답, false:오답
@@ -945,6 +1122,12 @@ double score_student(int fd, char *id) // 학생들의 답안 채점
 	int i;
 	char tmp[BUFLEN];
 	int size = sizeof(score_table) / sizeof(score_table[0]); // score_table 데이터 개수
+
+	if ((pOption || sOption) && std_node == NULL)	/// 노드 존재X시 긴급종료
+	{
+		fprintf(stderr, "Your node is empty\n");
+		exit(1);
+	}
 
 	for(i = 0; i < size ; i++)
 	{
@@ -966,25 +1149,126 @@ double score_student(int fd, char *id) // 학생들의 답안 채점
 				result = score_program(id, score_table[i].qname);
 		}
 
-		if(result == false) // 채점 결과가 틀렸을 경우 0점 처리
-			write(fd, "0,", 2); 
+		if(result == false) /// 매겨보니까 0점 (틀리면)이면?
+		{
+			if (!sOption)
+				write(fd, "0,", 2); 
+			
+			if (sOption || pOption)	 /// 틀렸으니까 당연리스트연결
+			{
+				append_score(std_node, score_table[i].qname, 0, score_table[i].score); 
+			}
+		}
 		else{
-			if(result == true){ // 채점 결과가 맞았을 경우
-				score += score_table[i].score; // 총점에 추가
+			if(result == true){ /// 맞은경우
+				score += score_table[i].score; /// 총점에 추가
 				sprintf(tmp, "%.2f,", score_table[i].score); 
+				
+				if (sOption)	/// 맞은 경우는 sOption 에만 연결
+				{
+					append_score(std_node, score_table[i].qname, score_table[i].score, score_table[i].score); 
+				}
 			}
-			else if(result < 0){ // 채점 결과가 WARNING일 경우
-				score = score + score_table[i].score + result; // -0.1점 감점
+			else if(result < 0){ /// Warning 으로 인하여 점수가 깎인경우
+				score = score + score_table[i].score + result; /// -0.1점씩 감점
 				sprintf(tmp, "%.2f,", score_table[i].score + result);
+
+				if (sOption || pOption)	// 워닝 경우에는 sOption, pOption 모두 연결
+				{
+					append_score(std_node, score_table[i].qname, score_table[i].score + result, score_table[i].score); 
+				}
 			}
-			write(fd, tmp, strlen(tmp));
+			if (!sOption)
+				write(fd, tmp, strlen(tmp));
 		}
 	}
 
-	printf("%s is finished.. score : %.2f\n", id, score); // 최종 결과 출력
+	if (!cOption && !pOption)
+		printf("%s is finished..\n", id); /// 결과 출력
+	else if (cOption && !pOption)
+	{
+		if (iIDs_cnt == 0)
+			printf("%s is finished.. score : %.2f\n", id, score); // 최종 결과 출력
+		else
+		{
+			int print_check = 0;
+			for (int i = 0 ; i < sizeof(iIDs) / sizeof(iIDs[0]) ; i++)
+			{
+				if (!strcmp(id, iIDs[i]))
+				{
+					/// 출력함수 넣을 것.
+					printf("%s is finished.. score : %.2f\n", id, score); /// 결과 출력
+					print_check = 1;
+					continue;
+				}
+			}
+
+			if (!print_check)
+				printf("%s is finished..\n", id); /// 결과 출력
+		}
+	}
+	else if (!cOption && pOption)
+	{
+		if (iIDs_cnt == 0)
+		{
+			printf("%s is finished.. ", id); /// 결과 출력
+			print_wrongL(std_node);
+		}
+		else
+		{
+			int print_check = 0;
+			for (int i = 0 ; i < sizeof(iIDs) / sizeof(iIDs[0]) ; i++)
+			{
+				if (!strcmp(id, iIDs[i]))
+				{
+					/// 출력함수 넣을 것.
+					printf("%s is finished.. ", id); /// 결과 출력
+					print_wrongL(std_node);
+					print_check = 1;
+					continue;
+				}
+			}
+
+			if (!print_check)
+				printf("%s is finished..\n", id); /// 결과 출력
+		}	
+	}
+	else if (cOption && pOption)
+	{
+		if (iIDs_cnt == 0)
+		{
+			printf("%s is finished.. score : %.2f, ", id, score);  
+			print_wrongL(std_node);
+		}
+		else
+		{
+			int print_check = 0;
+			for (int i = 0 ; i < sizeof(iIDs) / sizeof(iIDs[0]) ; i++)
+			{
+				if (!strcmp(id, iIDs[i]))
+				{
+					/// 출력함수 넣을 것.
+					printf("%s is finished.. score : %.2f, ", id, score); 
+					print_wrongL(std_node);
+					print_check = 1;
+					continue;
+				}
+			}
+			if (!print_check)
+				printf("%s is finished..\n", id); /// 결과 출력
+		}
+	}
 
 	sprintf(tmp, "%.2f\n", score);
-	write(fd, tmp, strlen(tmp)); // score.csv의 마지막 열에 데이터를 작성
+	if (!sOption)
+	{
+		write(fd, tmp, strlen(tmp)); // score.csv의 마지막 열에 데이터를 작성
+	}
+	if (sOption)
+	{
+		std_node->sums = score;
+		append_score(std_node, "sum", score, score); 	// 총점 데이터 추가.
+	}
 
 	return score;
 }
@@ -1209,7 +1493,7 @@ double compile_program(char *id, char *filename) // 프로그램 문제 컴파�
 		sprintf(command, "gcc -o %s %s", tmp_e, tmp_f);
 
 	sprintf(tmp_f, "%s/%s/%s_error.txt", stuDir, id, qname); // STD_DIR/2020XXXX/X_error.txt
-	fd = creat(tmp_f, 0666);
+	fd = open(tmp_f, O_RDWR | O_CREAT | O_TRUNC, 0666);		/// 옵션 변경 --> TRUNC
 
 	redirection(command, fd, STDERR); // command 명령 실행 후, 에러 시 STD_DIR/2020XXXX/X_error.txt에 내용 저장
 	size = lseek(fd, 0, SEEK_END); // 파일 크기 저장
@@ -1451,4 +1735,339 @@ void print_usage() // -h 옵션
 	printf(" -s <CATEGORY> <1|-1>\n");
 	printf(" -e <DIRNAME>\n");
 	printf(" -h\n");
+}
+
+
+
+void print_wrongL (Snode* node)
+{
+    if (node == NULL)
+        return;
+    
+    printf("wrong problem : ");
+    int comma = 0;
+    for (Sclist* tmp_q = node->list_head ; tmp_q != NULL ; tmp_q = tmp_q->file_next)
+    {
+        if (tmp_q->cur_score != tmp_q->score)
+        {
+            if (comma != 0)
+                printf(", ");
+            printf("%s(%.2f)", tmp_q->qname, tmp_q->score);
+            comma++;
+        }
+    }
+    printf("\n");
+}
+
+
+int write_sort (StdList* list, int fd)
+{
+    char tmp[20];
+    write_first_row(fd);
+
+    for (Snode* id_tmp = list->head ; id_tmp != NULL ; id_tmp = id_tmp->next)
+    {
+        sprintf(tmp, "%s,", id_tmp->id_name);
+        if (write(fd, tmp, strlen(tmp)) != strlen(tmp))
+        {
+            return false;
+        }
+        for (Sclist* q_tmp = id_tmp->list_head ; q_tmp != NULL ; q_tmp = q_tmp->file_next)
+        {
+            sprintf(tmp, "%.2f", q_tmp->cur_score);
+			if (q_tmp->file_next != NULL)
+				strcat(tmp, ",");
+			else
+				strcat(tmp, "\n");
+            if (write(fd, tmp, strlen(tmp)) != strlen(tmp))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+
+/**
+ * type  0:학번, 1:총점수 sums
+ * updown -1:내림차순, 1:오름차순
+*/
+void sort_manager(StdList* list, int type, int updown)
+{
+    if (list == NULL)
+        return;
+
+    if (type == 0 && updown == -1)
+        sort_descentI(list);
+    else if (type == 0 && updown == 1)
+        sort_aescendI(list);
+    else if (type == 1 && updown == -1)
+        sort_descentS(list);
+    else if (type == 1 && updown == 1)
+        sort_aescendS(list);
+}
+
+void sort_aescendI(StdList* list)
+{
+
+    Snode* swap_tmp = NULL;
+    for (int x = 0 ; x < list->id_cnt-1 ;x++)
+    {
+        Snode* par = NULL;
+        Snode* tmp = list->head;
+        for (int y = 0 ; y < list->id_cnt-x-1 ; y++)
+        {
+            if (atoi(tmp->id_name) > atoi(tmp->next->id_name))
+            {
+                swap_tmp = tmp->next; //swaping 이 일어나면 next가 바뀌는 문제 해결 위함
+                swap_list(list, par, tmp, tmp->next);
+                tmp = swap_tmp;
+            }
+            par = tmp;
+            tmp = tmp->next;
+        }
+    }
+}
+
+void sort_descentI(StdList* list)
+{
+
+    Snode* swap_tmp = NULL;
+    for (int x = 0 ; x < list->id_cnt-1 ;x++)
+    {
+        Snode* par = NULL;
+        Snode* tmp = list->head;
+        for (int y = 0 ; y < list->id_cnt-x-1 ; y++)
+        {
+            if (atoi(tmp->id_name) < atoi(tmp->next->id_name))
+            {
+                swap_tmp = tmp->next; //swaping 이 일어나면 next가 바뀌는 문제 해결 위함
+                swap_list(list, par, tmp, tmp->next);
+                tmp = swap_tmp;
+            }
+            par = tmp;
+            tmp = tmp->next;
+        }
+    }
+}
+
+void sort_aescendS(StdList* list)
+{
+
+    Snode* swap_tmp = NULL;
+    for (int x = 0 ; x < list->id_cnt-1 ;x++)
+    {
+        Snode* par = NULL;
+        Snode* tmp = list->head;
+        for (int y = 0 ; y < list->id_cnt-x-1 ; y++)
+        {
+            if (tmp->sums > tmp->next->sums)
+            {
+                swap_tmp = tmp->next; //swaping 이 일어나면 next가 바뀌는 문제 해결 위함
+                swap_list(list, par, tmp, tmp->next);
+                tmp = swap_tmp;
+            }
+            par = tmp;
+            tmp = tmp->next;
+        }
+    }
+}
+
+
+void sort_descentS(StdList* list)
+{
+
+    Snode* swap_tmp = NULL;
+    for (int x = 0 ; x < list->id_cnt-1 ;x++)
+    {
+        Snode* par = NULL;
+        Snode* tmp = list->head;
+        for (int y = 0 ; y < list->id_cnt-x-1 ; y++)
+        {
+            if (tmp->sums < tmp->next->sums)
+            {
+                swap_tmp = tmp->next; //swaping 이 일어나면 next가 바뀌는 문제 해결 위함
+                swap_list(list, par, tmp, tmp->next);
+                tmp = swap_tmp;
+            }
+            par = tmp;
+            tmp = tmp->next;
+        }
+    }
+}
+
+
+/**
+ * 버블 정렬을 할 것이기 때문에, p->a->b->next 형태를 무조건 띄고 있음
+ *  p->next = b
+ *  a->next = b->next
+ *  b->next = a
+ *  를하면됨
+*/
+int swap_list (StdList* list, Snode* p, Snode* a, Snode* b)  /// 버블 정렬에 필요한 a <-> b 링크드리스트 구조 변경 (a, b 링크는 인접함.)
+{
+    if (a == NULL || b == NULL)
+        return false;
+    
+    if (list->head == a && p == NULL) // 리스트의 head와 p 가 동일하면.. (+p == NULL)
+    {
+        a->next = b->next;
+        list->head = b;
+        b->next = a;
+        return true;
+    }
+    else
+    {
+        a->next = b->next;
+        p->next = b;
+        b->next = a;
+        return true;
+    }
+}
+
+double find_score (char* qname)
+{
+    for (int i = 0 ; i < QNUM ; i++)
+    {
+        if (!strcmp(score_table[i].qname, qname))
+        {
+            return score_table[i].score;
+        }
+    }
+    return -1;
+}
+
+
+void print_score (Snode* node)
+{
+    if (node == NULL)
+        return;
+    printf("------\n");    
+    for (Sclist* tmp = node->list_head ; tmp != NULL ; tmp = tmp->file_next)
+    {
+        printf("[%s] score = %0.2f, cur_score = %0.2f\n", tmp->qname, tmp->score, tmp->cur_score);
+    }
+    printf(">>> total question count = %d\n", node->file_cnt);
+    printf("------\n");
+}
+
+int append_score(Snode* node, char* qname, double cur_score, double score)
+{
+    if (node == NULL)
+        return false;
+    
+    Sclist* newnode;
+    
+    if (score == 0) // 문제 찾아서 넣는 함수 제작 필요.
+    {
+        newnode  = new_sclists(qname, cur_score);
+        newnode->score = find_score(qname);
+    }
+    else
+        newnode = new_sclistss(qname, cur_score, score);
+
+    
+    if (newnode == NULL)
+        return false;
+
+    if (node->list_head == NULL)
+    {
+        node->list_head = node->list_tail = newnode;
+        node->file_cnt++;
+        return true;
+    }
+    else
+    {
+        node->list_tail->file_next = newnode;
+        node->list_tail = newnode;
+        node->file_cnt++;
+        return true;
+    }
+}
+
+
+void print_list (StdList* list)
+{
+    printf("--------------<start printing node>---------------\n");
+    for (Snode* tmp = list->head ; tmp != NULL ; tmp = tmp->next)
+    {
+        printf("%s\n", tmp->id_name);        
+        printf("sums : %f\n", tmp->sums);
+    }
+    printf(">>> total id_cnt = %d\n", list->id_cnt);
+    printf("--------------<end printing node>---------------\n");
+
+}
+
+Snode* append_list (StdList* list, char* id)
+{
+    if (list == NULL)
+        return NULL;
+
+    Snode* newnode = new_stdnode(id);
+    if (newnode == NULL)
+        return NULL;
+    
+    if (list->head == NULL)                 /// 헤드가 NULL이면 초기연결
+    {
+        list->head = list->tail = newnode;
+        list->id_cnt++;
+        return newnode;
+    }
+    else                                    ///아닐 시, tail 추가연결
+    {
+        list->tail->next = newnode;
+        list->tail = newnode;
+        list->id_cnt++;
+        return newnode;
+    }
+
+}
+
+
+
+Sclist* new_sclists (char* qname, double curS)
+{
+    Sclist* node = (Sclist*)malloc(sizeof(Sclist));
+    strcpy(node->qname, qname);
+    node->cur_score = curS;
+    node->score = 0;
+    node->file_next = NULL;
+
+    return node;
+}
+
+
+Sclist* new_sclistss (char* qname, double curS, double s)
+{
+    Sclist* node = (Sclist*)malloc(sizeof(Sclist));
+    strcpy(node->qname, qname);
+    node->cur_score = curS;
+    node->score = s;
+    node->file_next = NULL;
+
+    return node;
+}
+
+Snode* new_stdnode (char* id)
+{
+    Snode* node = (Snode*)malloc(sizeof(Snode));
+    strcpy(node->id_name, id);
+
+    node->file_cnt = 0;
+    node->sums = 0;
+    node->next = NULL;
+    node->list_head = node->list_tail = NULL;
+
+    return node;
+}
+
+StdList* new_stdlist()
+{
+    StdList* list = (StdList*)malloc(sizeof(StdList));
+    list->head = list->tail = NULL;
+    list->id_cnt = 0;
+
+    return list;
 }
