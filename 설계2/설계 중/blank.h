@@ -515,7 +515,7 @@ int make_tokens(char *str, char tokens[TOKEN_CNT][MINLEN])
 				}
 			}
 		}
-		else{ // start와 end가 다른 경우 (일반 단어라면)
+		else{ // start와 end가 다른 경우 
 			/* row가 포인터인지 검사한다.*/
 			if(all_star(tokens[row - 1]) && row > 1 && !is_character(tokens[row - 2][strlen(tokens[row - 2]) - 1])) 
 				row--;				
@@ -692,131 +692,134 @@ int make_tokens(char *str, char tokens[TOKEN_CNT][MINLEN])
 /***** 여기까지 분석 완*/
 
 
-// char(*tokens)[MINLEN] : 배열 포인터 -> 한줄에 35개의 인덱스를 갖는 배열을 가리킴
-node *make_tree(node *root, char (*tokens)[MINLEN], int *idx, int parentheses) // 주어진 노드의 파스트리 생성, 초기 idx:0, parentheses:괄호 짝 개수
+// 해당 token 을 바탕으로 파스 트리 생성 (parentheses 괄호개수)
+node *make_tree(node *root, char (*tokens)[MINLEN], int *idx, int parentheses) 
 {
-	node *cur = root; // 노드 커서
-	node *new;
+	node *cur = root;
+	node *new; //임시노드 ,cur, new...
 	node *saved_operator;
 	node *operator;
 	int fstart;
 	int i;
 
-	while(1) // 토큰 탐색
+	// 모든 토큰이 분석될때까지 반복.
+	while(1)
 	{
-		if(strcmp(tokens[*idx], "") == 0) // 1. 토큰 배열이 비어있을 경우
+		if(strcmp(tokens[*idx], "") == 0) // 0 > 토큰이 비어있으면 종료
 			break;
 	
-		if(!strcmp(tokens[*idx], ")")) // 2. 토큰 배열에서 ')'를 만나면 괄호안의 문장을 마무리, 괄호내용을 포함하고 있는 부모 돌아감
+		if(!strcmp(tokens[*idx], ")")) // 1> ) : 트리생성을 종료하고 부모로 되돌리기.
 			return get_root(cur);
 
-		else if(!strcmp(tokens[*idx], ",")) // 3. 토큰 배열에서 ","를 만나면 부모로 돌아감
+		else if(!strcmp(tokens[*idx], ",")) // 2> : , 가 오면 트리생성 종료하고 부모 되돌리기.
 			return get_root(cur);
-
-		else if(!strcmp(tokens[*idx], "(")) // 4. 토큰 배열에서 "("를 만날 경우
+		
+		else if(!strcmp(tokens[*idx], "(")) // 3. 지금 토큰이 ( 으로 들어간다면 자식노드의 identifier(변수명) 인경우만 병렬적으로 next로 연결함
 		{
-			
-			if(*idx > 0 && !is_operator(tokens[*idx - 1]) && strcmp(tokens[*idx - 1], ",") != 0){ // a. 앞의 문자가 연산자나 ","가 아닐 경우
-				fstart = true; // create^(fd, O_RDONLY) 와 같은 케이스, 
+			// 3-1 : 바로 앞 토큰 문자가 연산자가 아니거나 + ',' 라면 가 아니면 가장 처음값으로 인식하고 같은 (형제) 수준으로 )를 만날때까지 노드를 연결 ex> names (A | B | C)
+			if(*idx > 0 && !is_operator(tokens[*idx - 1]) && strcmp(tokens[*idx - 1], ",") != 0){ 
+				fstart = true; 
 
 				while(1)
 				{
-					*idx += 1; // 다음 토큰 이동
+					*idx += 1; 
 
-					if(!strcmp(tokens[*idx], ")")) // 토큰이 ")"일 경우
+					if(!strcmp(tokens[*idx], ")")) 
 						break;
 					
-					new = make_tree(NULL, tokens, idx, parentheses + 1); // 자식 트리 생성
+					new = make_tree(NULL, tokens, idx, parentheses + 1)
 					
-					if(new != NULL){ // 자식 트리가 생성되었을 경우
-						if(fstart == true){
-							cur->child_head = new; // 현재 노드의 자식 노드 연결
-							new->parent = cur; // 자식 노드의 부모를 현재 노드로 연결
+					if(new != NULL){ 
+						if(fstart == true){  // 노드의 header 처리와 비슷.
+							cur->child_head = new; 
+							new->parent = cur; 
 	
 							fstart = false; 
 						}
-						else{ // 함수 인자문이 아닐 때, 형제로 인식
-							cur->next = new; // 현재 노드의 다음 노드로 연결
-							new->prev = cur; // 다음 노드의 이전 노드를 현재 노드로 연결
+						else{  // 같은 형제노드 수준에서 추가적인 identifier 연결
+							cur->next = new; 
+							new->prev = cur; 
 						}
 
-						cur = new; // 새로 만든 트리 노드로 이동
+						cur = new; //후미 노드 초기화
 					}
 
-					if(!strcmp(tokens[*idx], ")")) // 토큰이 ")" 일 경우
+					if(!strcmp(tokens[*idx], ")")) // ) 만났으니까 노드 생성 종료
 						break;
 				}
 			}
-			else{ // b. add(a,^(b+c)) | a +^(a+b) | (fd, O_RDONLY) 와 같은 케이스, 기본 괄호 트리 생성 유형
-				*idx += 1; // 다음 토큰 이동
+			else{ // 3-2 : ( 가 맨 처음 위치하거나 바로앞 토큰이 연산자거나 바로 앞이 , 가 아니라면,,
+				*idx += 1; 
 	
-				new = make_tree(NULL, tokens, idx, parentheses + 1); // 새로운 자식 트리 생성(재귀)
+				new = make_tree(NULL, tokens, idx, parentheses + 1); // 재귀 트리 생성
 
-				if(cur == NULL) // 현재 위치가 최상위 부모 노드일 경우
-					cur = new; // 자식 트리로 이동
+				if(cur == NULL) // 3-2-A. ( 가 맨 처음에 위치한 경우라면 ex) (end = times ...)
+					cur = new; // cur 을 맨 처음 노드로...
 
-				else if(!strcmp(new->name, cur->name)){ // 자식 토큰과 현재의 토큰이 같다면 (++, --, &&, ||)
-					if(!strcmp(new->name, "|") || !strcmp(new->name, "||")  // 자식의 토큰이 논리 연산자일 경우, (||, , (|, (&&, (&,
+				// 3-2-B-a. 현재 준 답안 중에 해당되는 예시 없음.. --> 자식토큰과 현재토큰이 아래와 같은 (| || & &&) 로 동일하다면 자식 노드로 생성하는게 아니라 형제 노드로 연결
+				else if(!strcmp(new->name, cur->name)){ 
+					if(!strcmp(new->name, "|") || !strcmp(new->name, "||")  
 						|| !strcmp(new->name, "&") || !strcmp(new->name, "&&"))
 					{
-						cur = get_last_child(cur); // 자식중 가장 막내 노드로 이동
+						cur = get_last_child(cur); // cur의 막내노드로 이동해서 
 
-						if(new->child_head != NULL){ // 자식노드의 자식트리가 존재할 경우
-							new = new->child_head; // 자식 노드도 최하위 자식의 마지막 형제로 이동
+						if(new->child_head != NULL){ // new 노드에 자식노드가 있다면 자식노드로 이동해서 동일한 관계 (형졔관계로 변경)
+							new = new->child_head; 
 
-							new->parent->child_head = NULL; // 자식관계가 아닌 형제관계로 변경
-							new->parent = NULL; // 즉 비교 연산자 다음에 오는 토큰을 자식 관계로 생성되었지만 형제관계로 변경
+							new->parent->child_head = NULL; 
+							new->parent = NULL; 
 							new->prev = cur;
 							cur->next = new;
 						}
 					}
-					else if(!strcmp(new->name, "+") || !strcmp(new->name, "*")) // 자식의 토큰이 수식 연산자 일 경우, + ( +,  * ( *
+					// 3-2-B-b. 괄호 앞에 +, - 가 온 경우 ex) + (  --> 새 연산자와 뒤 연산자의 우선순위를 비교해서 노드관계를 갱신한다.
+					else if(!strcmp(new->name, "+") || !strcmp(new->name, "*")) 
 					{
-						i = 0; // 괄호 안 수식 내용 중 연산자 인덱스
+						i = 0;  // i := 다음 연산자 로 지정.
 
-						while(1)
-						{
-							if(!strcmp(tokens[*idx + i], "")) // 토큰이 비었을 경우
+						while(1) 
+						{   // 다음 토큰이 비어있으면 break.
+							if(!strcmp(tokens[*idx + i], "")) 
 								break;
 
-							if(is_operator(tokens[*idx + i]) && strcmp(tokens[*idx + i], ")") != 0) // 해당 토큰이 연산자에 포함되고, ')'가 아닐 경우
+							if(is_operator(tokens[*idx + i]) && strcmp(tokens[*idx + i], ")") != 0) // 다음 토큰이 연산자이고 ) 가 아니면 break. 
 								break; 
 
 							i++; 
 						}
 						
-						if(get_precedence(tokens[*idx + i]) < get_precedence(new->name)) // 새로운 연산자와 기존 연산자 우선순위 비교, 새로운 연산자가 더 우선일경우
-						{
-							cur = get_last_child(cur); // 자식중 가장 막내 노드로 이동 
-							cur->next = new; // 막내 노드 갱신(new)
+						if(get_precedence(tokens[*idx + i]) < get_precedence(new->name)) // ( 안 연산자랑 앞의 연산자랑 비교해서 우선순위에 따라 자식 노드 연결
+						{	// 괄호 안 연산자가 우선순위가 더 작으면 이전 연산자랑 동일관계로 노드 설정
+							cur = get_last_child(cur);
+							cur->next = new; 
 							new->prev = cur; 
 							cur = new;
 						}
-						else // 기존 연산자가 더 우선일 경우
+						else // 괄호 안 연산자가 우선순위가 더 크면 이전 토큰 연산자를 동일한 이전 연산자의 자식노드로 연결
 						{
-							cur = get_last_child(cur); // 자식중 가장 막내 노드로 이동 
+							cur = get_last_child(cur); 
 
 							if(new->child_head != NULL){ 
 								new = new->child_head;
 
-								new->parent->child_head = NULL; // 새로운 연산자의 자식노드를 기존 연산자의 다음 형제로 이동
+								new->parent->child_head = NULL; 
 								new->parent = NULL;
 								new->prev = cur;
 								cur->next = new;
 							}
 						}
-					}
+					}// 3-2-B-c. 그 외의 경우 그냥 동일관계로 연결
 					else{ 
-						cur = get_last_child(cur); // 자식 중 가장 막내 노드로 이동 
-						cur->next = new; // 막내 노드 갱신(new)
+						cur = get_last_child(cur);  
+						cur->next = new; 
 						new->prev = cur;
 						cur = new;
 					}
 				}
-	
+				// 3-2-C ( 뒤에 논리연산도 아니고, 맨 처음도 아니고 이전토큰이 , 도 아니라면 그냥 형제노드로연결
 				else
 				{
-					cur = get_last_child(cur); // 자식중 가장 막내 노드로 이동
+					cur = get_last_child(cur); 
 
 					cur->next = new;
 					new->prev = cur;
@@ -825,54 +828,61 @@ node *make_tree(node *root, char (*tokens)[MINLEN], int *idx, int parentheses) /
 				}
 			}
 		}
-		else if(is_operator(tokens[*idx])) // 5. 토큰 배열에서 연산자를 만날 경우
+		else if(is_operator(tokens[*idx])) // 4. ( , ) 가 아닌 일반적인 연산자가 온경우 
 		{
+			// 4-1. 연산자 중에서도 A 연산자 B 관계가 상관없는 연산자 (교환법칙이 성립하는 연산자) 
+				// ||, && , | , & , + , *를 만난 경우 --> 형제노드로 연결하기 위한 분기문
 			if(!strcmp(tokens[*idx], "||") || !strcmp(tokens[*idx], "&&")
 					|| !strcmp(tokens[*idx], "|") || !strcmp(tokens[*idx], "&") 
 					|| !strcmp(tokens[*idx], "+") || !strcmp(tokens[*idx], "*"))
-			{  // c. 논리 연산자의 경우
-				if(is_operator(cur->name) == true && !strcmp(cur->name, tokens[*idx])) // 현재 노드의 토큰이 연산자이고, 현재 노드의 토큰과 다음 토큰이 같은 연산자인 경우
-					operator = cur; // 연산자로 현재 노드를 지정
+			{  
+				//만약 cur이 연산자고, 현재 토큰과 같은 연산자라면 operator 로 cur을 할당
+				if(is_operator(cur->name) == true && !strcmp(cur->name, tokens[*idx])) 
+					operator = cur; 
 		
-				else // 아닐 경우
+				else //아니면
 				{
-					new = create_node(tokens[*idx], parentheses); // 새로운 노드 생성
-					operator = get_most_high_precedence_node(cur, new); // 기존 최우선 연산자와, 새로운 연산자의 우선순위 비교 후 연산자로 지정
+					// 새로운 노드를 생성해서 cur, new 연산자 중 우선순위가 높은 연산자를 operator 로 설정
+					new = create_node(tokens[*idx], parentheses);
+					operator = get_most_high_precedence_node(cur, new); 
 
-					if(operator->parent == NULL && operator->prev == NULL){ // 우선순위인 연산자 노드가 부모가 없고, 형제도 없으면
+					if(operator->parent == NULL && operator->prev == NULL){ // operator 노드가 부모 , 형제 아무것도 없으면 
 
-						if(get_precedence(operator->name) < get_precedence(new->name)){ // 기존 연산자가 새로운 연산자보다 우선순위가 높을 경우
-							cur = insert_node(operator, new); // 새로운 연산자를 기존 우선순위 연산자의 부모로 둠(트리의 잎에 가까울수록 우선순위 높음)
+						// (원래)opeator 연산자 > 새 연산자 라면 --> new를 operator 의 부모로 설정 (parse 트리 특성상 아래로 내려갈 수록 연산자 우선순위가 높게 설정)
+						if(get_precedence(operator->name) < get_precedence(new->name)){ 
+							cur = insert_node(operator, new); 
 						}
-
-						else if(get_precedence(operator->name) > get_precedence(new->name)) // 새로운 연산자가 기존연산자보다 우선순위가 높을 경우
+						// (원래)opeator 연산자 < 새 연산자 라면 --> new를 opeartor 의 가장 하위자식으로 설정
+						else if(get_precedence(operator->name) > get_precedence(new->name)) 
 						{
-							if(operator->child_head != NULL){ // 기존 연산자 노드의 자식이 존재하면 새로운 연산자 노드를 자식 연산자 노드들의 막내 자리에 두고, 막내노드가 새로운 연산자노드의 자식이 됨
+							if(operator->child_head != NULL){ 
 								operator = get_last_child(operator);   
 								cur = insert_node(operator, new); 
 							}
 						}
-						else // 최우선 연산자랑 우선순위가 같거나 지정되어있지 않을 경우
+						else // 연산자 우선순위가 같으면 operator 에 cur 을 할당한다.
 						{
-							operator = cur; // 최우선 연산자 지정
-	
+							operator = cur; 
+
+							//operatr를 가장 왼편 operator (가장 큰 형) 노드로 이동
 							while(1)
 							{
 								if(is_operator(operator->name) == true && !strcmp(operator->name, tokens[*idx])) // 기존 연산자가 새로운 토큰이랑 같을 때
 									break;
-						
-								if(operator->prev != NULL) // 기존 연산자의 형노드가 있을 경우
-									operator = operator->prev; // 기존 연산자의 형노드로 이동
-								else // 없을 경우
+								
+								if(operator->prev != NULL) 
+									operator = operator->prev; 
+								else 
 									break;
 							}
-
-							if(strcmp(operator->name, tokens[*idx]) != 0) // 기존 연산자와 새로운 토큰이 다를 경우 
+							
+							//원래 operator 와 현 토큰이 다른 연산자라면 operator를 부모로 이동.
+							if(strcmp(operator->name, tokens[*idx]) != 0)
 								operator = operator->parent; 
 
-							if(operator != NULL){ // 연산자 노드가 지정되어있을 경우
-								if(!strcmp(operator->name, tokens[*idx])) // 기존 연산자와 새로운 토큰이 같을 경우
-									cur = operator; // 현재 노드는 연산자 노드로 지정
+							if(operator != NULL){ // operator 가 NULL 이 아니고 operator와 현 토큰의 operator가 같으면 현재 노드를 opeartor 할당
+								if(!strcmp(operator->name, tokens[*idx])) 
+									cur = operator; 
 							}
 						}
 					}
@@ -882,33 +892,36 @@ node *make_tree(node *root, char (*tokens)[MINLEN], int *idx, int parentheses) /
 				}
 
 			}
-			else // d. 그 외에 연산자(<, >, /, -, <=, >=< ==, !=, ^, = ...)
+			else // 4-2. A 연산자 B 관계에서 연산자 관계가 존재하는  연산자들 --> - = != <= 등등.... : 기존의 new를 old의 부모노드로 연결
 			{
-				new = create_node(tokens[*idx], parentheses); // 해당 토큰 노드 생성
+				// 새 토큰 생성
+				new = create_node(tokens[*idx], parentheses); 
+				
+				// cur 노드가 비어있으면 노드 cur 노드에 new 할당
+				if(cur == NULL)
+					cur = new;
 
-				if(cur == NULL) // 현재 가리키고 있는 노드가 없을 경우
-					cur = new; // 노드 생성 후 포인팅
-
-				else // 가리키고 있는 노드가 존재할 경우
+				else // cur 노드가 존재한다면.
 				{
-					operator = get_most_high_precedence_node(cur, new); // 현재 가리키는 노드와 연산자 우선순위 비교 후 선 순위 노드 할당, 우선순위(연산자 < 단어)
+					//new 노드보다 연산자 우선순위가 높은 cur 부모/형제 중 가장 부모노드에 가장 근접하면서 우선순위가 높은연산자 받아옴.
+					operator = get_most_high_precedence_node(cur, new);
 
-					if(operator->parentheses > new->parentheses) // 기존의 연산자가 더 많은 괄호 안에 존재할 때 (new ((operator)))
-						cur = insert_node(operator, new); // 새로운 연산자를 기존의 연산자 앞에 둠
-
-					else if(operator->parent == NULL && operator->prev ==  NULL){ // 우선 연산자가 최상위 노드일 경우(단어 일 경우 ?)
+					if(operator->parentheses > new->parentheses) // operator 가 new 보다 괄호가 많으면 new 를 operator의 부모노드로 설정하고 cur 로 할당
+						cur = insert_node(operator, new);
+					// opeartor 연산자가 가장 루트노드인경우 operator 연산자가 new 연산자보다 우선순위가 높으면 막내노드(맞형)로 설정
+					else if(operator->parent == NULL && operator->prev ==  NULL){ 
 					
-						if(get_precedence(operator->name) > get_precedence(new->name)) // 기존연산자(단어) > 새 연산자
+						if(get_precedence(operator->name) > get_precedence(new->name))
 						{
-							if(operator->child_head != NULL){ // 단어의 자식이 존재할 경우
+							if(operator->child_head != NULL){ 
 	
-								operator = get_last_child(operator); // 자식의 막내의 형노드로 삽입
+								operator = get_last_child(operator); 
 								cur = insert_node(operator, new);
 							}
 						}
-					
+					// 아래부터 new 연산자를 operator 의 부모노드로 설정.
 						else	
-							cur = insert_node(operator, new); // 기존 연산자 < 새 연산자, 기존연산자의 부모로 삽입
+							cur = insert_node(operator, new);
 					}
 	
 					else
@@ -916,38 +929,38 @@ node *make_tree(node *root, char (*tokens)[MINLEN], int *idx, int parentheses) /
 				}
 			}
 		}
-		else  // 6. 일반적인 단어일 경우
+		else  // 5. 그 밖의 일반 단어의 경우. 
 		{
-			new = create_node(tokens[*idx], parentheses); // 노드 생성 
+			new = create_node(tokens[*idx], parentheses); //노드 하나 생성 
 
-			if(cur == NULL) // 루트노드 시작이면 생성한 노드를 시작 노드로 지정
+			if(cur == NULL) // 5-1. 가장 첫번째 노드라면 헤드노드로 설정
 				cur = new;
 
-			else if(cur->child_head == NULL){ // 자식이 없다면
-				cur->child_head = new; // 자식 노드로 지정
+			else if(cur->child_head == NULL){ // 5-2. 자식 노드가 없다면 자식노드로 설정
+				cur->child_head = new; 
 				new->parent = cur;
 
 				cur = new;
 			}
-			else{ // 자식이 존재할 경우 
+			else{ // 5-3. 자식노드가 있다면 막내노드로 만들고 갱신
+					//가장 막내노드 가져오기
+				cur = get_last_child(cur); 
 
-				cur = get_last_child(cur); // cur = 자식중의 막내노드 
-
-				cur->next = new; // 막내 갱신
+				cur->next = new; 
 				new->prev = cur;
 
 				cur = new;
 			}
 		}
 
-		*idx += 1; // 인덱스 증가
+		*idx += 1;  //다음 토큰 분석..
 	}
 
 	return get_root(cur); // 만들어진 트리의 루트노드를 반환
 }
 
-/// 자식노드의 형제노드들을 swaping하는 함수
-node *change_sibling(node *parent) // 자식의 형제 노드들을 Swap (순서가 바뀐 동일 연산식 처리), 반환:parent
+//* (분석 완) 자식노드의 형제노드들을 swaping하는 함수 (next <-> prev 변경)
+node *change_sibling(node *parent)
 {
 	node *tmp;
 	
@@ -967,7 +980,7 @@ node *change_sibling(node *parent) // 자식의 형제 노드들을 Swap (순서
 	return parent;
 }
 
-/// name: 학생 답안 정보, parenthesese : 괄호 개수 --> node 생성자
+//* name: 학생 답안 정보, parenthesese : 괄호 개수 --> node 생성자
 node *create_node(char *name, int parentheses)
 {
 	node *new;
@@ -1015,18 +1028,21 @@ int is_operator(char *op)
 }
 
 
-void print(node *cur) // 트리 출력
+//* 트리 출력함수
+void print(node *cur) 
 {
-	if(cur->child_head != NULL){ // 자식이 존재할 경우 자식을 출력하고 개행
+	//자식 노드가 존재하면 자식 노드로 재귀호출
+	if(cur->child_head != NULL){ 
 		print(cur->child_head); 
 		printf("\n");
 	}
 
-	if(cur->next != NULL){ // 형제의 경우 형제를 출력하고 띄어쓰기
+	//형제 노드가 존재하면 형제 호출
+	if(cur->next != NULL){ 
 		print(cur->next);
 		printf("\t");
 	}
-	printf("%s", cur->name); // 토큰 출력
+	printf("%s", cur->name); //출력 (자식노드의 가장 오른쪽부터 출력 후위순회 (Right left root))
 }
 
 node *get_operator(node *cur) // 형제들의 부모 노드를 반환, 반환:parent 
@@ -1055,65 +1071,73 @@ node *get_root(node *cur) // 트리의 최상위 노드를 반환, 반환:root
 	return cur;
 }
 
-node *get_high_precedence_node(node *cur, node *new) // 두 노드 중 우선순위가 가장 높은 연산자 노드를 반환(기존 연산자만 리턴)
+//* (분석 완) cur의 형/부모 노드들 중 우선순위가 new보다 하나라도 높은 연산자 노드 return
+node *get_high_precedence_node(node *cur, node *new) 
 {
-	if(is_operator(cur->name)) // 일단 비교 후, 기존 연산자 노드가 우선순위가 높으면 
-		if(get_precedence(cur->name) < get_precedence(new->name))
-			return cur; // 기존 연산자 노드 리턴
+	if(is_operator(cur->name)) // 연산자 값이 작을 수록 연산자 우선순위가 높음 우선순위가 높은 cur return
+		if(get_precedence(cur->name) < get_precedence(new->name))  
+			return cur; 
 
-	if(cur->prev != NULL){ // 그런데 새로운 연산자 노드가 우선순위가 높을 경우, 기존 연산자 노드의 형제들 탐색
-		while(cur->prev != NULL){ // 형제중 맏형 노드로 이동 후
+	// new 연산자 우선순위가 높고 + cur의 형 노드가 존재한다면
+	if(cur->prev != NULL){ 
+		while(cur->prev != NULL){ // 형제노드를 하나씩 땡겨가며 형제노드 중 우선순위가 하나라도 높은게 있는지 확인.
 			cur = cur->prev;
 			
-			return get_high_precedence_node(cur, new); // 맏형노드와 우선순위 비교
+			return get_high_precedence_node(cur, new); // 형 노드로 재귀호출
 		}
 
 
-		if(cur->parent != NULL) // 맏형 노드와도 비교 후 새 연산자 노드가 더 클 경우, 부모 노드 호출
-			return get_high_precedence_node(cur->parent, new); // 부모 노드와 우선순위 비교
+		if(cur->parent != NULL) // 형 노드의 부모노드가 존재한다면 부모노드로 재귀호출
+			return get_high_precedence_node(cur->parent, new);
 	}
 
-	if(cur->parent == NULL) // 더이상 부모 노드가 없을경우
-		return cur; // 현재 노드 반환
+	// cur의 부모노드가 없으면 cur return.
+	if(cur->parent == NULL) 
+		return cur; 
 }
 
-node *get_most_high_precedence_node(node *cur, node *new) // 새 연산자와 기존 연산자 노드,형제,부모 비교, 새연산자 노드가 우선순위가 가장 높을경우 새 연산자 노드도 리턴
+//* (분석 완) cur 노드 중 가장 부모노드쪽에 있으면서 new 노드모다 연산자 우선순위가 높은 노드 return
+node *get_most_high_precedence_node(node *cur, node *new) 
 {
-	node *operator = get_high_precedence_node(cur, new); // 기존연산자(형제, 부모 포함)와 새 연산자 우선순위 비교
+	node *operator = get_high_precedence_node(cur, new); // new보다 연산자가 높은 cur의 형/부모 노드 를 operator 할당
 	node *saved_operator = operator; 
 
-	while(1) // 가장 우선순위가 높은 연산자가 판별되고
+	while(1) // cur 노드의 형제/부모들 중 가장 우선순위가 높은 연산자 노드 return
 	{
-		if(saved_operator->parent == NULL) // 가장 우선순위의 노드의 부모가 존재하지 않으면 (새 연산자 혹은 기존 최우선 연산자), 더이상 비교 불가
+		//cur 노드의 더이상 부모가 없다면.. break;
+		if(saved_operator->parent == NULL)
 			break; 
 
-		if(saved_operator->prev != NULL) // 가장 우선순위 노드의 형제들이 존재하면
-			operator = get_high_precedence_node(saved_operator->prev, new); // 형제노드들과 우선순위 비교
+		if(saved_operator->prev != NULL)  
+			operator = get_high_precedence_node(saved_operator->prev, new); //형제 노드 비교
 
-		else if(saved_operator->parent != NULL) // 가장 우선순위 노드의 부모 노드가 존재할 경우
-			operator = get_high_precedence_node(saved_operator->parent, new); // 부모노드와 우선순위 비교
+		else if(saved_operator->parent != NULL) 
+			operator = get_high_precedence_node(saved_operator->parent, new); //부모 노드 비교
 
-		saved_operator = operator; // 형제 노드도 없고, 부모노드도 없을 경우 
+		saved_operator = operator; 
 	}
 	
-	return saved_operator; // 결정된 최우선 노드 반환
+	return saved_operator; 
 }
 
-node *insert_node(node *old, node *new) // 노드를 삽입, 삽입한 위치이후 노드는 자식관계로 전환, 삽입한 노드 반환
+//* (분석 완) new를 old 의 부모노드로 연결
+node *insert_node(node *old, node *new)
 {
-	if(old->prev != NULL){ // 형제가 존재할 경우 삽입할 노드와 형제관계로 이어줌
-		new->prev = old->prev; // 기존 노드의 연결을 새노드가 물려받음
+	// old 형제 노드가 존재한다면, new를 형제관계로 연결
+	if(old->prev != NULL){ 
+		new->prev = old->prev;
 		old->prev->next = new;
 		old->prev = NULL;
 	}
 
-	new->child_head = old; // 새 노드의 자식을 기존 노드로 변경
-	old->parent = new; // 기존 노드의 부모를 새 노드로 변경
+	new->child_head = old; 
+	old->parent = new; 
 
 	return new;
 }
 
-node *get_last_child(node *cur) // 인자로 주어진 노드의 자식 중 막내를 리턴
+//* (분석 완) 노드의 막내의 가장 오른편 노드를 return
+node *get_last_child(node *cur) 
 {
 	if(cur->child_head != NULL)
 		cur = cur->child_head;
