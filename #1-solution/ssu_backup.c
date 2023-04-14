@@ -682,7 +682,7 @@ int BackupDir(char *path, char *date) {
       dirNode *new = (dirNode *)malloc(sizeof(dirNode));
       strcpy(new->path, tmppath);
       mainDirList->tail->next = new;
-      mainDirList->tail = mainDirList->tail->next;
+      mainDirList->tail = mainDirList->tail->next;    //  연결리스트 연결 *디렉토리리스트에 연결
     } else if(S_ISREG(statbuf.st_mode)) {
       BackupFile(tmppath, date);
     }
@@ -753,6 +753,7 @@ int AddCommand(command_parameter *parameter) {
   return 0;
 }
 
+//Pass
 void CommandFun(char **arglist) {
   int (*commandFun)(command_parameter * parameter);
 	command_parameter parameter={
@@ -772,6 +773,7 @@ void CommandFun(char **arglist) {
   }
 }
 
+//Pass
 void CommandExec(command_parameter parameter) {
   pid_t pid;
 
@@ -797,6 +799,7 @@ void CommandExec(command_parameter parameter) {
   }
 }
 
+//Pass
 void SystemExec(char **arglist) {
   pid_t pid;
   char whichPath[PATHMAX];
@@ -814,6 +817,8 @@ void SystemExec(char **arglist) {
   }
 }
 
+
+//Pass
 void HelpExec() {
   pid_t pid;
 
@@ -835,6 +840,7 @@ void ParameterInit(command_parameter *parameter) {
 	parameter->commandopt = 0;
 }
 
+// 마치 옵션을 O_CREAT 방식처럼 연결해서 사용함. --> 굉장히 좋아보이나, 시험에서 쓰기엔 좀 곤란해보인다... ㅋㅋ
 int ParameterProcessing(int argcnt, char **arglist, int command, command_parameter *parameter) {
 	struct stat buf;
   optind = 0;
@@ -1107,6 +1113,7 @@ int Prompt() {
   }
 }
 
+//Pass ...
 void Init() {
   getcwd(exePATH, PATHMAX);
   sprintf(homePATH, "%s", getenv("HOME"));
