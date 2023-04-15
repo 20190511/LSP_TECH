@@ -496,7 +496,7 @@ int check_option(int argc, char *argv[])
 						}
 						strcpy(iIDs[j], argv[i]);
 						iIDs_check = true;
-						iIDs_cnt = j;
+						iIDs_cnt = j+1;
 					}
 					i++;
 					j++;
@@ -579,27 +579,27 @@ int check_option(int argc, char *argv[])
 }
 
 
-
+// n옵션으로 score.csv 파일 위치 변동
 int do_nOption (char* pathname)		
 {
 	char tmpP [MAXPATHLEN] = {0,};
 	strcpy(tmpP, pathname);
 	
-	if (!realpathS(tmpP, MAXPATHLEN))			/// 길이 제한 오류처리
+	if (!realpathS(tmpP, MAXPATHLEN))			// 길이 제한 오류처리
 		return false;
 	
-	if (!csv_check(tmpP))			/// csv 파일 아닌 경우 삭제
+	if (!csv_check(tmpP))			// csv 파일 아닌 경우 삭제
 		return false;
 
 	strcpy(csvDir, tmpP);
-	mkdirs(tmpP); 			/// ansDir 부모디렉토리까지 디렉토리 생성.
+	mkdirs(tmpP); 			// ansDir 부모디렉토리까지 디렉토리 생성.
 	return true;
 }
 
-
-int mkdirs(char* pathname)		/// 디렉토리 생성함수
+// pathname 부모디렉토리까지 재귀적으로 생성하는 함수
+int mkdirs(char* pathname)		// 디렉토리 생성함수
 {
-    if (pathname[0] != '/')         /// 절대경로만 받을 수 있음.
+    if (pathname[0] != '/')         // 절대경로만 받을 수 있음.
         return 0;
 	char tokens[MAXPATHLEN] = {0,};
 	char subS[MAXPATHLEN] = "/";
@@ -618,7 +618,7 @@ int mkdirs(char* pathname)		/// 디렉토리 생성함수
         if (access(subS, F_OK) == 0)
         {
             stat(subS, &statbuf);
-            if (!S_ISDIR(statbuf.st_mode))      /// 해당 경로에 파일이 있는 경우 덮어씌움
+            if (!S_ISDIR(statbuf.st_mode))      // 해당 경로에 파일이 있는 경우 덮어씌움
             {
                 remove(subS);
                 mkdir(subS, 0755);
@@ -635,6 +635,7 @@ int mkdirs(char* pathname)		/// 디렉토리 생성함수
 }
 
 
+//csv 파일인지 체크해주는 함수
 int csv_check (char* pathname)				/// csv 파일 체크함수.
 {
     char* csvtype = ".csv";
@@ -648,6 +649,7 @@ int csv_check (char* pathname)				/// csv 파일 체크함수.
         return true;
 }
 
+// 상대경로 -> 절대경로 함수
 int realpathS(char* pathname, size_t size)
 {
     char tmp [MAXPATHLEN*2] = {0,};
@@ -708,6 +710,7 @@ int realpathS(char* pathname, size_t size)
     }
 }
 
+// 현재 사용 X 함수
 void do_iOption(char (*ids)[FILELEN])
 {
 	FILE *fp;
@@ -767,6 +770,7 @@ void do_iOption(char (*ids)[FILELEN])
 	fclose(fp);
 }
 
+// 문제 번호 수정 함수
 void do_mOption(char *ansDir)
 {
 	double newScore;
@@ -778,7 +782,7 @@ void do_mOption(char *ansDir)
 	ptr = malloc(sizeof(char) * FILELEN);
 
 	while(1){
-
+		// 수정할 문제번호 입력받기
 		printf("Input question's number to modify >> ");
 		scanf("%s", modiName);
 
@@ -793,7 +797,7 @@ void do_mOption(char *ansDir)
 				fprintf(stderr, "your number is wrong\n");
 				exit(1);	
 			}
-			if(!strcmp(ptr, modiName)){
+			if(!strcmp(ptr, modiName)){ //찾는 문제가 존재할 경우 현재 배점 띄워주고, 변화시킬 배점 받기
 				printf("Current score : %.2f\n", score_table[i].score);
 				printf("New score : ");
 				scanf("%lf", &newScore);
@@ -810,7 +814,8 @@ void do_mOption(char *ansDir)
 
 }
 
-char* get_header_char(char *header, int idx) // 인덱스 기준 파일명 파싱(temp: X.c | X-X.txt)
+// 현재 사용 X?
+char* get_header_char(char *header, int idx) 
 {
 	char *temp = (char *)calloc(BUFLEN, sizeof(char));
 	int i = 0;
@@ -819,7 +824,8 @@ char* get_header_char(char *header, int idx) // 인덱스 기준 파일명 파�
 	return temp;
 }
 
-int is_exist(char (*src)[FILELEN], char *target) // 학번이 IDS에 존재하는지 확인(유:1, 무:0)
+// 해당 옵션에 학번이 존재하는지 확인하는 함수
+int is_exist(char (*src)[FILELEN], char *target) 
 {
 	int i = 0;
 
@@ -835,127 +841,139 @@ int is_exist(char (*src)[FILELEN], char *target) // 학번이 IDS에 존재하�
 	return false;
 }
 
+// ANS/score_table.csv 생성 함수
 void set_scoreTable(char *ansDir) // score_table.csv 설정
 {
-	char filename[FILELEN]; // $(PWD)/score_table.csv
-		/// chdir(ansDir);
+	char filename[FILELEN]; 
+	// chdir(ansDir);
 	sprintf(filename, "%s", "score_table.csv");
 
-	if(access(filename, F_OK) == 0) // score_table.csv 파일이 존재 할 경우
+	// 파일이 존재하면 score_table 전역변수 배열을 만들고, 없으면 새로 생성 
+	if(access(filename, F_OK) == 0) 
 		read_scoreTable(filename); 
-	else{ // score_table.csv 파일이 존재하지 않을 경우 
-		make_scoreTable(ansDir); // score_table.csv 생성
-		write_scoreTable(filename); // score_table.csv 작성
+	else{ 
+		make_scoreTable(ansDir); 
+		write_scoreTable(filename); 
 	}
 }
 
-void read_scoreTable(char *path) // score_table.csv 파일 읽기 및 구조체 데이터 할당
+// score_table.csv 파일을 읽어서 각 문제 점수 배열을  score_table 배열에 할당
+void read_scoreTable(char *path) 
 {
 	FILE *fp;
 	char qname[FILELEN];
 	char score[BUFLEN];
 	int idx = 0;
 
-	if((fp = fopen(path, "r")) == NULL){ // $(PWD)/score_table.csv를 읽기 전용으로 열기
+	if((fp = fopen(path, "r")) == NULL){
 		fprintf(stderr, "file open error for %s\n", path);
 		return ;
 	}
 
-	while(fscanf(fp, "%[^,],%s\n", qname, score) != EOF){ // 쉼표 기준으로 qname, score 할당
-		strcpy(score_table[idx].qname, qname); // score_table 구조체에 문제 할당
-		score_table[idx++].score = atof(score); // score_table 구조체에 점수 할당
+	// , 를 바탕으로 앞부분을 qname, score 로 설정
+	while(fscanf(fp, "%[^,],%s\n", qname, score) != EOF){ 
+		strcpy(score_table[idx].qname, qname); 
+		score_table[idx++].score = atof(score);
 	}
 
 	fclose(fp);
 }
 
-void make_scoreTable(char *ansDir) // score_table.csv 파일 생성
+// score_table.csv 생성 함수
+void make_scoreTable(char *ansDir) 
 {
 	int type, num; 
 	double score, bscore, pscore;
-	struct dirent *dirp; // $(PWD)/ANS_DIR 디렉토리 목록 구조체
-	DIR *dp; // $(PWD)/ANS_DIR 디렉토리 구조체
+	struct dirent *dirp; 
+	DIR *dp; 
 	char tmp[BUFLEN];
-	int idx = 0; // score_table 구조체 문제 항목 개수
+	int idx = 0;
 	int i;
 
 	num = get_create_type();			
 
-	if(num == 1) // 1번 옵션 선택 시, 한번에 점수 할당
+	// 입력받은 문제 배점 방식 1번 인지 확인
+	if(num == 1) 
 	{
+		// 빈칸문제점수와 프로그램 문제 점수 받기
 		printf("Input value of blank question : ");
-		scanf("%lf", &bscore); // 빈칸 문제 점수
+		scanf("%lf", &bscore);
 		printf("Input value of program question : ");
-		scanf("%lf", &pscore); // 프로그램 문제 점수
+		scanf("%lf", &pscore); 
 	}
 
-	if((dp = opendir(ansDir)) == NULL){ // $(PWD)/ANS_DIR 열기
+	// opendir->readdir 을 통해 정답 문제 파일 불러오기 + score_table 에 문제번호 저장
+	if((dp = opendir(ansDir)) == NULL){ 
 		fprintf(stderr, "open dir error for %s\n", ansDir);
 		return;
 	}	
 
-	while((dirp = readdir(dp)) != NULL) // $(PWD)/ANS_DIR 디렉토리 목록 읽어오기
+	while((dirp = readdir(dp)) != NULL) 
 	{
 		sprintf(tmp, "%s/%s", ansDir, dirp->d_name);
-		if(!strcmp(dirp->d_name, ".") || !strcmp(dirp->d_name, "..")) // 현재, 상위 디렉토리 파일 접근 생략
+		if(!strcmp(dirp->d_name, ".") || !strcmp(dirp->d_name, "..")) 
 			continue;
 
-		if((type = get_file_type(dirp->d_name)) < 0) // 디렉토리에 존재하는 파일의 타입 확인, 요구하지 않는 파일의 경우 생략
+		if((type = get_file_type(dirp->d_name)) < 0) // 문제 번호 타입이 맞는지 확인 (.txt, .c)
 			continue;
 
-		strcpy(score_table[idx++].qname, dirp->d_name); // X-X.txt | X.c
+		strcpy(score_table[idx++].qname, dirp->d_name); 
 
 	}
 	closedir(dp);
-	sort_scoreTable(idx); // score_table.csv 테이블 항목 정렬
+	sort_scoreTable(idx); // 문제 번호 정렬
 
 	for(i = 0; i < idx; i++) 
 	{
-		type = get_file_type(score_table[i].qname); // score_table 구조체에 존재하는 문제 항목 파일 타입 결정 
+		//문제 번호로 
+		type = get_file_type(score_table[i].qname);  // 문제 번호 타입이 맞는지 확인 (.txt, .c)
 
-		if(num == 1) // 1번 옵션 선택 시 
+		if(num == 1) // 1번 방식으로 배점할 시 일괄처리
 		{
-			if(type == TEXTFILE) // X-X.txt파일의 경우 
+			if(type == TEXTFILE) 
 				score = bscore;
-			else if(type == CFILE) // X.c파일의 경우
+			else if(type == CFILE) 
 				score = pscore;
 		}
-		else if(num == 2)  // 2번 옵션 선택 시 각 항목 별 점수 할당
+		else if(num == 2)  // 2번 방식으로 배점할 시 대화식처리
 		{
 			printf("Input of %s: ", score_table[i].qname);
 			scanf("%lf", &score);
 		}
 
-		score_table[i].score = score; // 문제 할당 점수 갱신
+		score_table[i].score = score; // score_table 갱신
 	}
 }
 
-void write_scoreTable(char *filename) // score_table.csv 데이터 작성
+// score_table (문제 정답배점) csv 파일 생성함수
+void write_scoreTable(char *filename) 
 {
 	int fd;
 	char tmp[BUFLEN];
 	int i;
-	int num = sizeof(score_table) / sizeof(score_table[0]); // score_table 구조체의 항목 개수
+	int num = sizeof(score_table) / sizeof(score_table[0]); 
 
-	if((fd = creat(filename, 0666)) < 0){ // $(PWD)/score_table.csv, 0666 생성
+	//  filename에 score_table 생성
+	if((fd = creat(filename, 0666)) < 0){ 
 		fprintf(stderr, "creat error for %s\n", filename);
 		return;
 	}
 
 	for(i = 0; i < num; i++)
 	{
-		if(score_table[i].score == 0) // score_table 구조체에 존재하는 문제의 할당 점수가 0일 경우 
+		// 해당 배점 중 0점이 존재하면 break.
+		if(score_table[i].score == 0) 
 			break;
 
-		sprintf(tmp, "%s,%.2f\n", score_table[i].qname, score_table[i].score); // tmp = X-X.txt,XX.XX | X.c,XX.XX
+		sprintf(tmp, "%s,%.2f\n", score_table[i].qname, score_table[i].score);
 		write(fd, tmp, strlen(tmp));
 	}
 
 	close(fd);
 }
 
-
-void set_idTable(char *stuDir) // 학번 테이블 생성
+// 학번 디렉토리 순회하면서 학번 테이블 id_table 생성
+void set_idTable(char *stuDir) 
 {
 	struct stat statbuf;
 	struct dirent *dirp;
@@ -963,20 +981,22 @@ void set_idTable(char *stuDir) // 학번 테이블 생성
 	char tmp[BUFLEN];
 	int num = 0;
 
-	if((dp = opendir(stuDir)) == NULL){ // STD_DIR 열기
+	//전형적인 opendir->readdir 로 해당 파일 모두 순회
+	if((dp = opendir(stuDir)) == NULL){ 
 		fprintf(stderr, "opendir error for %s\n", stuDir);
 		exit(1);
 	}
 
-	while((dirp = readdir(dp)) != NULL){ // 해당 디렉토리 파일들 순회
+	while((dirp = readdir(dp)) != NULL){ 
 		if(!strcmp(dirp->d_name, ".") || !strcmp(dirp->d_name, ".."))
 			continue;
 
-		sprintf(tmp, "%s/%s", stuDir, dirp->d_name); // STD_DIR/2020XXXX
-		stat(tmp, &statbuf); // STD_DIR/내의 내용물 정보 가져오기
+		sprintf(tmp, "%s/%s", stuDir, dirp->d_name); 
+		stat(tmp, &statbuf); 
 
-		if(S_ISDIR(statbuf.st_mode)) // 내용물이 디렉토리 일 경우
-			strcpy(id_table[num++], dirp->d_name); // 테이블에 디렉토리 이름(학번) 저장
+		// 만약 디렉토리면 학번이므로 id_table에 저장, 일반파일은 pass
+		if(S_ISDIR(statbuf.st_mode)) 
+			strcpy(id_table[num++], dirp->d_name); 
 		else
 			continue;
 	}
@@ -984,7 +1004,8 @@ void set_idTable(char *stuDir) // 학번 테이블 생성
 	sort_idTable(num);
 }
 
-void sort_idTable(int size) // 학번 테이블 정렬: 오름차순
+// 학번 버블 정렬 (aescend)
+void sort_idTable(int size) 
 {
 	int i, j;
 	char tmp[10];
@@ -1000,19 +1021,20 @@ void sort_idTable(int size) // 학번 테이블 정렬: 오름차순
 	}
 }
 
-void sort_scoreTable(int size) // score_table.csv 데이터 정렬
+// 문제번호로 문제번호 버블정렬함수
+void sort_scoreTable(int size)
 {
 	int i, j;
 	struct ssu_scoreTable tmp;
 	int num1_1, num1_2;
 	int num2_1, num2_2;
 
-	for(i = 0; i < size - 1; i++) { // size = 테이블에 존재하는 항목 개수
+	for(i = 0; i < size - 1; i++) { 
 		for(j = 0; j < size - 1 - i; j++) {
 			get_qname_number(score_table[j].qname, &num1_1, &num1_2);
 			get_qname_number(score_table[j+1].qname, &num2_1, &num2_2);
 
-			if((num1_1 > num2_1) || ((num1_1 == num2_1) && (num1_2 > num2_2))){ // 사전적 정렬에서 정수적 정렬로 데이터 재정렬
+			if((num1_1 > num2_1) || ((num1_1 == num2_1) && (num1_2 > num2_2))){ 
 				memcpy(&tmp, &score_table[j], sizeof(score_table[0]));
 				memcpy(&score_table[j], &score_table[j+1], sizeof(score_table[0]));
 				memcpy(&score_table[j+1], &tmp, sizeof(score_table[0]));
@@ -1021,13 +1043,14 @@ void sort_scoreTable(int size) // score_table.csv 데이터 정렬
 	}
 }
 
-void get_qname_number(char *qname, int *num1, int *num2) // 문제 파일명 구분
+// -, . 으로 문제 번호 구분하는 함수
+void get_qname_number(char *qname, int *num1, int *num2) 
 {
 	char *p;
 	char dup[FILELEN];
 
 	strncpy(dup, qname, strlen(qname)); 
-	*num1 = atoi(strtok(dup, "-.")); // -, .으로 문제 파일 이름 구분
+	*num1 = atoi(strtok(dup, "-."));
 	
 	p = strtok(NULL, "-.");
 	if(p == NULL)  
@@ -1036,7 +1059,8 @@ void get_qname_number(char *qname, int *num1, int *num2) // 문제 파일명 구
 		*num2 = atoi(p); 
 }
 
-int get_create_type() // score_table.csv 데이터 할당 방법 선택, 선택 정수 반환
+// 정답 테이블 점수 받을 방법 선택받기
+int get_create_type() 
 {
 	int num;
 
@@ -1060,29 +1084,34 @@ int get_create_type() // score_table.csv 데이터 할당 방법 선택, 선택 
 void score_students() // score.csv 생성
 {
 	double score = 0;
+	double score2 = 0;
 	int num;
 	int fd;
 	char tmp[BUFLEN];
 	int size = sizeof(id_table) / sizeof(id_table[0]); // id_table 테이블 데이터 개수
+	int print_check = 0;		// c, p 옵션 학생 수
 
-	if((fd = creat(csvDir, 0666)) < 0){			/// n 옵션부터 만들 것!
+	if((fd = creat(csvDir, 0666)) < 0){			// n 옵션부터 만들 것!
 		fprintf(stderr, "creat error for score.csv");
 		return;
 	}
 	StdList* stdL = NULL;
 	Snode* stdnode = NULL;
-	if (sOption || pOption)	// s 옵션, p 옵션 존재 시 리스트 생성
+		// s 옵션, p 옵션 존재 시 리스트 생성
+	if (sOption || pOption)
 	{
 		stdL = new_stdlist();
 	}
 
+	// 레코드 타입 생성
 	if (!sOption)
-		write_first_row(fd); // 테이블 제목 행 생성(문제 번호)
+		write_first_row(fd); 
 
 
 	for(num = 0; num < size; num++)
 	{
-		if(!strcmp(id_table[num], "")) // 학생 테이블 내용이 존재하지 않을 경우
+		// 학생 테이블이 없으면 break
+		if(!strcmp(id_table[num], "")) 
 			break;
 
 		if (sOption || pOption)
@@ -1092,16 +1121,53 @@ void score_students() // score.csv 생성
 
 		if (!sOption)
 		{
-			sprintf(tmp, "%s,", id_table[num]); // tmp = 2020XXXX
-			write(fd, tmp, strlen(tmp));  /// mOption 없는 경우에는 바로 출력
+			sprintf(tmp, "%s,", id_table[num]); 
+			write(fd, tmp, strlen(tmp));  // mOption 없는 경우에는 바로 출력
 		}
 
-		score += score_student(fd, id_table[num], stdnode); // 학생의 점수 계산
+		if (cOption)
+		{	
+			for (int i = 0 ; i < sizeof(iIDs) / sizeof(iIDs[0]) ; i++)
+			{
+				if (!strcmp(id_table[num], iIDs[i]))
+				{
+					print_check += 1;
+					continue;
+				}
+			}
+		}
+
+		int tmp_score = score_student(fd, id_table[num], stdnode); // 빈칸문제 계산
+		if (cOption)
+		{
+			if (print_check == 0)
+				score2 += tmp_score;
+			else
+			{
+				for (int i = 0 ; i < sizeof(iIDs) / sizeof(iIDs[0]) ; i++)
+				{
+					if (!strcmp(id_table[num], iIDs[i]))
+					{
+						score2 += tmp_score;
+						continue;
+					}
+				}
+			}
+		}	
+
+
+
+		score += tmp_score;
 	}
 
-	/// cOption 존재 시 아래에 정렬 함수 + for 문 출력함수 생성
+	// cOption 존재 시 아래에 정렬 함수 + for 문 출력함수 생성
 	if (cOption)
-		printf("Total average : %.2f\n", score / num);
+	{
+		if (print_check == 0)
+			printf("Total average : %.2f\n", score / num);
+		else
+			printf("Total average : %.2f\n", score2 / print_check);
+	}
 	printf("result saved.. (%s)\n", csvDir);
 	if (eOption)
 		printf("error saved.. (%s)\n", errorDir);
@@ -1114,11 +1180,12 @@ void score_students() // score.csv 생성
 	close(fd);
 }
 
-double score_student(int fd, char *id, Snode* std_node) // 학생들의 답안 채점
+// 학생 답안 채점 함수
+double score_student(int fd, char *id, Snode* std_node) 
 {
 	int type;
-	double result; // 채점 결과, true:정답, false:오답
-	double score = 0; // 채점 총점
+	double result; 
+	double score = 0;
 	int i;
 	char tmp[BUFLEN];
 	int size = sizeof(score_table) / sizeof(score_table[0]); // score_table 데이터 개수
@@ -1134,48 +1201,52 @@ double score_student(int fd, char *id, Snode* std_node) // 학생들의 답안 �
 		if(score_table[i].score == 0)
 			break;
 
-		sprintf(tmp, "%s/%s/%s", stuDir, id, score_table[i].qname); // STD_DIR/2020XXXX/X-X.txt | STD_DIR/2020XXXX/X.c
+		sprintf(tmp, "%s/%s/%s", stuDir, id, score_table[i].qname);
 		
-		if(access(tmp, F_OK) < 0) // 학생 답안 파일 정보 가져오기
+		if(access(tmp, F_OK) < 0) 
 			result = false;
 		else
 		{
-			if((type = get_file_type(score_table[i].qname)) < 0) 			/// 파일 타입 가져오기
+			if((type = get_file_type(score_table[i].qname)) < 0) 			// 파일 타입 가져오기
 				continue;
 			
-			if(type == TEXTFILE) // 빈칸 문제(X-X.txt)
+			// 빈칸문제인지 프로그램 문제인지 검사
+			if(type == TEXTFILE) 
 				result = score_blank(id, score_table[i].qname);
-			else if(type == CFILE) // 프로그램 문제(X.c)
+			else if(type == CFILE)
 				result = score_program(id, score_table[i].qname);
 		}
 
-		if(result == false) /// 매겨보니까 0점 (틀리면)이면?
+		if(result == false) // 매겨보니까 0점 (틀리면)이면?
 		{
 			if (!sOption)
 				write(fd, "0,", 2); 
 			
-			if (sOption || pOption)	 /// 틀렸으니까 당연리스트연결
+			if (sOption || pOption)	 // 틀렸으니까 당연리스트연결
 			{
 				append_score(std_node, score_table[i].qname, 0, score_table[i].score); 
 			}
 		}
 		else{
-			if(result == true){ /// 맞은경우
+			if(result == true){ // 맞은경우
 				score += score_table[i].score; /// 총점에 추가
 				sprintf(tmp, "%.2f,", score_table[i].score); 
 				
-				if (sOption)	/// 맞은 경우는 sOption 에만 연결
+				if (sOption)	// 맞은 경우는 sOption 에만 연결
 				{
 					append_score(std_node, score_table[i].qname, score_table[i].score, score_table[i].score); 
 				}
 			}
-			else if(result < 0){ /// Warning 으로 인하여 점수가 깎인경우
-				score = score + score_table[i].score + result; /// -0.1점씩 감점
-				sprintf(tmp, "%.2f,", score_table[i].score + result);
+			else if(result < 0){ // Warning 으로 인하여 점수가 깎인경우
+				double tmp_score = score_table[i].score + result; /// 워닝 감점 추가.
+				if (score < 0)		// 감점된 점수가 0점 밑인 경우
+					tmp_score = 0;
+				score += tmp_score;
+				sprintf(tmp, "%.2f,", tmp_score);
 
 				if (sOption || pOption)	// 워닝 경우에는 sOption, pOption 모두 연결
 				{
-					append_score(std_node, score_table[i].qname, score_table[i].score + result, score_table[i].score); 
+					append_score(std_node, score_table[i].qname, tmp_score, score_table[i].score); 
 				}
 			}
 			if (!sOption)
@@ -1184,7 +1255,7 @@ double score_student(int fd, char *id, Snode* std_node) // 학생들의 답안 �
 	}
 
 	if (!cOption && !pOption)
-		printf("%s is finished..\n", id); /// 결과 출력
+		printf("%s is finished..\n", id); // 결과 출력
 	else if (cOption && !pOption)
 	{
 		if (iIDs_cnt == 0)
@@ -1196,22 +1267,22 @@ double score_student(int fd, char *id, Snode* std_node) // 학생들의 답안 �
 			{
 				if (!strcmp(id, iIDs[i]))
 				{
-					/// 출력함수 넣을 것.
-					printf("%s is finished.. score : %.2f\n", id, score); /// 결과 출력
+					// 출력함수 넣을 것.
+					printf("%s is finished.. score : %.2f\n", id, score); // 결과 출력
 					print_check = 1;
 					continue;
 				}
 			}
 
 			if (!print_check)
-				printf("%s is finished..\n", id); /// 결과 출력
+				printf("%s is finished..\n", id); // 결과 출력
 		}
 	}
 	else if (!cOption && pOption)
 	{
 		if (iIDs_cnt == 0)
 		{
-			printf("%s is finished.. ", id); /// 결과 출력
+			printf("%s is finished.. ", id); // 결과 출력
 			print_wrongL(std_node);
 		}
 		else
@@ -1221,8 +1292,8 @@ double score_student(int fd, char *id, Snode* std_node) // 학생들의 답안 �
 			{
 				if (!strcmp(id, iIDs[i]))
 				{
-					/// 출력함수 넣을 것.
-					printf("%s is finished.. ", id); /// 결과 출력
+					// 출력함수 넣을 것.
+					printf("%s is finished.. ", id); // 결과 출력
 					print_wrongL(std_node);
 					print_check = 1;
 					continue;
@@ -1230,7 +1301,7 @@ double score_student(int fd, char *id, Snode* std_node) // 학생들의 답안 �
 			}
 
 			if (!print_check)
-				printf("%s is finished..\n", id); /// 결과 출력
+				printf("%s is finished..\n", id); // 결과 출력
 		}	
 	}
 	else if (cOption && pOption)
@@ -1247,7 +1318,7 @@ double score_student(int fd, char *id, Snode* std_node) // 학생들의 답안 �
 			{
 				if (!strcmp(id, iIDs[i]))
 				{
-					/// 출력함수 넣을 것.
+					// 출력함수 넣을 것.
 					printf("%s is finished.. score : %.2f, ", id, score); 
 					print_wrongL(std_node);
 					print_check = 1;
@@ -1255,7 +1326,7 @@ double score_student(int fd, char *id, Snode* std_node) // 학생들의 답안 �
 				}
 			}
 			if (!print_check)
-				printf("%s is finished..\n", id); /// 결과 출력
+				printf("%s is finished..\n", id); // 결과 출력
 		}
 	}
 
@@ -1291,6 +1362,7 @@ void write_first_row(int fd) // $(PWD)/score.csv의 제목행 데이터 삽입
 	write(fd, "sum\n", 4); // 마지막 열은 총합 점수
 }
 
+
 char *get_answer(int fd, char *result) // X-X.txt에서 작성한 답안 반환
 {
 	char c;
@@ -1310,95 +1382,115 @@ char *get_answer(int fd, char *result) // X-X.txt에서 작성한 답안 반환
 	return result;
 }
 
-int score_blank(char *id, char *filename) // 빈칸 문제 채점
+// 빈칸 텍스트 채점
+int score_blank(char *id, char *filename)
 {
-	char tokens[TOKEN_CNT][MINLEN]; // 토큰 배열
+	// make_tokens 함수로 받아올 토큰
+	char tokens[TOKEN_CNT][MINLEN]; 
 	node *std_root = NULL, *ans_root = NULL;
 	int idx, start;
 	char tmp[BUFLEN];
-	char s_answer[BUFLEN], a_answer[BUFLEN]; // 학생 답안 내용, 정답 답안 내용
-	char qname[FILELEN] = { 0 }; // X | X-X
-	int fd_std, fd_ans; // 학생 답안, 정답 답안 파일 디스크럽터
+	char s_answer[BUFLEN], a_answer[BUFLEN]; 
+	char qname[FILELEN] = { 0 }; 
+	int fd_std, fd_ans; 
 	int result = true; 
-	int has_semicolon = false; // 세미콜론 유무 확인 변수
+	int has_semicolon = false; // 다수 정답 존재여부 확인
 
-	memcpy(qname, filename, strlen(filename) - strlen(strrchr(filename, '.'))); // qname = X | X-X
+	memcpy(qname, filename, strlen(filename) - strlen(strrchr(filename, '.'))); // .txt 부분 삭제
 
-	// 학생 빈칸 문제 답안
-	sprintf(tmp, "%s/%s/%s", stuDir, id, filename); // STD_DIR/2020XXXX/X-X.txt
-	fd_std = open(tmp, O_RDONLY); // $(PWD)/STD_DIR/X-X.txt 읽기 전용 열기
-	strcpy(s_answer, get_answer(fd_std, s_answer)); // 학생 답안 내용 가져오기
+	// 빈칸 문제 채점
+	sprintf(tmp, "%s/%s/%s", stuDir, id, filename); 
+	fd_std = open(tmp, O_RDONLY); 
+	strcpy(s_answer, get_answer(fd_std, s_answer)); //학생이 적은 답 가져오기
 
-	if(!strcmp(s_answer, "")) { // 학생 답안의 내용이 없을 경우
+	// 빈칸이면 0점
+	if(!strcmp(s_answer, "")) { 
 		close(fd_std);
 		return false;
 	}
 
-	if(!check_brackets(s_answer)){ // 학생 답안의 괄호의 짝이 맞지 않을 경우
+	// 괄호 짝이 안맞으면 0점
+	if(!check_brackets(s_answer)){ 
 		close(fd_std);
 		return false;
 	}
 
-	strcpy(s_answer, ltrim(rtrim(s_answer))); // 학생 답안의 좌우 공백 지우기
+	//좌우 공백 삭제
+	strcpy(s_answer, ltrim(rtrim(s_answer))); 
 
-	if(s_answer[strlen(s_answer) - 1] == ';'){ // 학생 답안의 끝에 ';'이 존재할 경우
+	// 끝에 ; 존재하면 ; 삭제
+	if(s_answer[strlen(s_answer) - 1] == ';'){ 
 		has_semicolon = true;
-		s_answer[strlen(s_answer) - 1] = '\0'; // 세미콜론 삭제
+		s_answer[strlen(s_answer) - 1] = '\0'; 
 	}
 
-	if(!make_tokens(s_answer, tokens)){ // 학생 답안 토큰 생성, 정상:1, 오류:0
+	// 학생 정답 lexeme 을 토큰 단위로 분리 해서 배열저장 오류 발생시 0 return
+	if(!make_tokens(s_answer, tokens)){
 		close(fd_std);
 		return false;
 	}
 
-	idx = 0; // 인덱스 초기화
-	std_root = make_tree(std_root, tokens, &idx, 0); // std_root = 학생 답안의 토큰 트리의 파스노드, 학생 답안의 트리 생성
+	
+	idx = 0; 
+	// 학생의 토큰으로 파스트리 생성
+	std_root = make_tree(std_root, tokens, &idx, 0); 
 
-	// 정답 빈칸 문제
-	sprintf(tmp, "%s/%s", ansDir, filename); // ANS_DIR/X-X.txt 
-	fd_ans = open(tmp, O_RDONLY); // ANS_DIR/X-X.txt 읽기 전용 열기
+	
+	//정답 가져오기
+	sprintf(tmp, "%s/%s", ansDir, filename); 
+	fd_ans = open(tmp, O_RDONLY)
 
 	while(1)
 	{
-		ans_root = NULL; // ANS_DIR/X-X.txt의 토큰트리의 루트 노드
+		//정답 트리의 루트노드과 될 예정
+		ans_root = NULL;
 		result = true; 
 
+		//토큰 초기화
 		for(idx = 0; idx < TOKEN_CNT; idx++)
 			memset(tokens[idx], 0, sizeof(tokens[idx]));
 
-		strcpy(a_answer, get_answer(fd_ans, a_answer)); // 정답 답안 내용 가져오기
+		//정답 가져오기
+		strcpy(a_answer, get_answer(fd_ans, a_answer)); 
 
-		if(!strcmp(a_answer, "")) // 정답 답안의 내용이 없을 경우
+		//정답이 없으면 멈추기
+		if(!strcmp(a_answer, "")) 
 			break;
 
-		strcpy(a_answer, ltrim(rtrim(a_answer))); // 정답 답안의 좌우 공백 지우기
+		// 좌우공백 삭제
+		strcpy(a_answer, ltrim(rtrim(a_answer))); 
 
-		if(has_semicolon == false){ // 학생 답안의 끝에 ';'이 존재하지 않을 경우
-			if(a_answer[strlen(a_answer) -1] == ';')  // 정답 답안의 끝에 ';'이 존재하면 
-				continue; // 넘어감
+		// 끝에 ; 있으면 일단 넘어감
+		if(has_semicolon == false){ 
+			if(a_answer[strlen(a_answer) -1] == ';')  
+				continue;
 		}
 
-		else if(has_semicolon == true) // 학생 답안에 ';'이 존재할 경우
+		// 끝에 ; 존재하면 지우고 \0 으로 문자열화
+		else if(has_semicolon == true) 
 		{
-			if(a_answer[strlen(a_answer) - 1] != ';') // 정답 답안 내용의 끝이 ';'가 아닐 경우
-				continue; // 넘어감
+			if(a_answer[strlen(a_answer) - 1] != ';') 
+				continue;
 			else
-				a_answer[strlen(a_answer) - 1] = '\0'; // 정답 답안 내용의 끝의 세미콜론을 지우고 NULL을 넣음
+				a_answer[strlen(a_answer) - 1] = '\0'; 
 		}
 
-		if(!make_tokens(a_answer, tokens)) // 정답 답안 토큰 생성, 정상:1, 오류:0
+		//정답지 토큰 생성
+		if(!make_tokens(a_answer, tokens))
 			continue;
 
 		idx = 0;
-		ans_root = make_tree(ans_root, tokens, &idx, 0); // ans_root = 정답 답안의 파스트리의 루트노드, 정답 답안의 트리 생성
+		// 정답 파스트리 생성
+		ans_root = make_tree(ans_root, tokens, &idx, 0); 
 
-		compare_tree(std_root, ans_root, &result); // 학생 답안의 파스트리와 정답 답안의 파스트리 비교
+		// 학생 답이랑, 정답지랑 비교
+		compare_tree(std_root, ans_root, &result);
 
-		if(result == true){ // 정답 답안의 파스트리와 학생 답안의 파스트리가 같을 경우
+		// 학생트리와 정답트리가 동일할 경우 true return 하고 종료
+		if(result == true){
 			close(fd_std);
 			close(fd_ans);
 
-			// 파스트리 초기화
 			if(std_root != NULL) 
 				free_node(std_root);
 			if(ans_root != NULL)
@@ -1419,39 +1511,48 @@ int score_blank(char *id, char *filename) // 빈칸 문제 채점
 	return false;
 }
 
-double score_program(char *id, char *filename) // 프로그램 문제 채점, id:202000XX, filename:$(PWD)/DIR/filepath
+// 프로그램 문제 점수 매기는 함수 --> 컴파일해서 에러면 0점, 경고 시 경고 개수만큼 return
+double score_program(char *id, char *filename) 
 {
 	double compile;
 	int result;
-	compile = compile_program(id, filename); // 프로그램 컴파일
+	//컴파일
+	compile = compile_program(id, filename); 
 
-	if(compile == ERROR || compile == false) // ERROR:0, false:0
+	// 에러면 0 점 리턴
+	if(compile == ERROR || compile == false)
 		return false;
 	
-	result = execute_program(id, filename); // 프로그램 실행
+	//프로그램 실행 해서 결과 담기
+	result = execute_program(id, filename); 
 
-	if(!result) // 프로그램 컴파일 시 에러가 떴을 경우
+	// 에러 존재 시 0 점
+	if(!result)
 		return false;
 
-	if(compile < 0) // 프로그램 컴파일 시 경고가 떴을 경우
+	//경고 시 경고 개수 return
+	if(compile < 0) 
 		return compile;
 
 	return true;
 }
 
+// 스레드 문제인지 검사
 int is_thread(char *qname)
 {
 	int i;
-	int size = sizeof(threadFiles) / sizeof(threadFiles[0]); // threadFiles 구조체 개수(문제 개수)
+	int size = sizeof(threadFiles) / sizeof(threadFiles[0]); 
 
+	//threadFiles 에 문제가 있으면 true
 	for(i = 0; i < size; i++){
-		if(!strcmp(threadFiles[i], qname)) // 해당하는 문제가 존재할 경우
+		if(!strcmp(threadFiles[i], qname)) 
 			return true;
 	}
-	return false; // 존재하지 않을 경우
+	return false; 
 }
 
-double compile_program(char *id, char *filename) // 프로그램 문제 컴파일
+// 프로그램 문제 컴파일 함수
+double compile_program(char *id, char *filename)
 {
 	int fd;
 	char tmp_f[BUFLEN], tmp_e[BUFLEN];
@@ -1460,127 +1561,136 @@ double compile_program(char *id, char *filename) // 프로그램 문제 컴파�
 	int isthread;
 	off_t size;
 	double result;
-	memcpy(qname, filename, strlen(filename) - strlen(strrchr(filename, '.'))); // qname = X
+	memcpy(qname, filename, strlen(filename) - strlen(strrchr(filename, '.')));
 	
-	isthread = is_thread(qname); // -t 옵션으로 받은 문제인지 확인
-
-	// 정답 프로그램 컴파일
-	sprintf(tmp_f, "%s/%s", ansDir, filename); // ANS_DIR/X.c
-	sprintf(tmp_e, "%s/%s.exe", ansDir, qname); // ANS_DIR/X.exe
-	if(tOption && isthread) // -t 옵션이 문제에 주어졌을 경우
+	//스레드 사용 문제인지 확인
+	isthread = is_thread(qname); 
+	
+	//실행파일과 c파일 받아옴.
+	sprintf(tmp_f, "%s/%s", ansDir, filename); 
+	sprintf(tmp_e, "%s/%s.exe", ansDir, qname); 
+	if(tOption && isthread) // -t 와 해당 문제가 스레드이용문제가 맞으면 -lpthread 사용
 		sprintf(command, "gcc -o %s %s -lpthread", tmp_e, tmp_f);
-	else // 아닐 경우
+	else 
 		sprintf(command, "gcc -o %s %s", tmp_e, tmp_f);
 
 	sprintf(tmp_e, "%s/%s_error.txt", ansDir, qname);
 	fd = creat(tmp_e, 0666);
 	
-	redirection(command, fd, STDERR); // command 명령 실행 후, 에러시 ANS_DIR/X_error.txt에 내용 저장
-	size = lseek(fd, 0, SEEK_END); // 파일 크기 저장
+	// 에러 발생 문구를 에러 error.txt 저장 (임시파일)
+	redirection(command, fd, STDERR);
+	size = lseek(fd, 0, SEEK_END); // 에러 파일 크기
 	close(fd); 
-	unlink(tmp_e); // ANS_DIR/X.exe 파일 삭제
+	unlink(tmp_e); //저장한 에러파일 삭제
 
-	if(size > 0) // 파일에 컴파일 에러 내용이 저장되어 있을 경우
+	//컴파일된 파일에 에러가 존재 시 종료
+	if(size > 0) 
 		return false;
 
-	// 학생 답안 프로그램 컴파일
-	sprintf(tmp_f, "%s/%s/%s", stuDir, id, filename); // STD_DIR/2020XXXX/X.c
-	sprintf(tmp_e, "%s/%s/%s.stdexe", stuDir, id, qname); // STD_DIR/2020XXXX/X.stdexe
+	// 학생 파일 컴파일 진행 위와 동일 (아래 계속 동일)
+	sprintf(tmp_f, "%s/%s/%s", stuDir, id, filename); 
+	sprintf(tmp_e, "%s/%s/%s.stdexe", stuDir, id, qname); 
 
-	if(tOption && isthread) // -t 옵션이 문제에 주어졌을 경우
+	if(tOption && isthread) 
 		sprintf(command, "gcc -o %s %s -lpthread", tmp_e, tmp_f);
-	else // 아닐 경우
+	else 
 		sprintf(command, "gcc -o %s %s", tmp_e, tmp_f);
 
-	sprintf(tmp_f, "%s/%s/%s_error.txt", stuDir, id, qname); // STD_DIR/2020XXXX/X_error.txt
-	fd = open(tmp_f, O_RDWR | O_CREAT | O_TRUNC, 0666);		/// 옵션 변경 --> TRUNC
+	sprintf(tmp_f, "%s/%s/%s_error.txt", stuDir, id, qname); 
+	fd = open(tmp_f, O_RDWR | O_CREAT | O_TRUNC, 0666); // 학생 에러파일 존재시 밀고 다시 작성
 
-	redirection(command, fd, STDERR); // command 명령 실행 후, 에러 시 STD_DIR/2020XXXX/X_error.txt에 내용 저장
-	size = lseek(fd, 0, SEEK_END); // 파일 크기 저장
+	redirection(command, fd, STDERR); //에러 파일 리다이렉션 (학생 디렉토리에 저장)
+	size = lseek(fd, 0, SEEK_END); //에러파일 저장
 	close(fd);
 
-	if(size > 0){ // 파일에 컴파일 에러 내용이 저장되어 있을 경우
-		if(eOption) // -e 옵션을 주었을 때 ERROR/2020XXXX/X_error.txt로 저장
+	//해당 에러파일에 에러 파일이 존재하는 경우! e옵션 있으면 에러 경로에 파일 저장.
+	if(size > 0){ 
+		if(eOption) 
 		{
-			sprintf(tmp_e, "%s/%s", errorDir, id); // ERROR/2020XXXX
+			sprintf(tmp_e, "%s/%s", errorDir, id); //에러 디렉토리에 학생 학번 저장 <errorDir>/id
 			
-			realpath(tmp_e, tmp_e);		/// 임시방편 realpath
+			realpath(tmp_e, tmp_e); //상대경로->절대경로화 (realpathS 로 처리해주긴함.)
 			
-			if(access(tmp_e, F_OK) < 0) // 디렉토리 접근이 가능하지 않을 경우(디렉토리가 존재하지 않을 경우)
+			if(access(tmp_e, F_OK) < 0) //디렉토리가 없으면 디렉토리 생성
 				mkdir(tmp_e, 0755);
 
-			sprintf(tmp_e, "%s/%s/%s_error.txt", errorDir, id, qname); // ERROR/2020XXXX/X_error.txt
-			rename(tmp_f, tmp_e); // mv STD_DIR/2020XXXX/X_error.txt ERROR/2020XXXX/X_error.txt
+			sprintf(tmp_e, "%s/%s/%s_error.txt", errorDir, id, qname); //<errDir> 로 에러파일 이동
+			rename(tmp_f, tmp_e); // 원래 <stdDIR>에 있던 에러파일을 errDir로 옮기기
 
-			result = check_error_warning(tmp_e); // 에러인지 경고인지 파악
+			result = check_error_warning(tmp_e); // 에러면 0, 경고면 에러개수 저장
 		}
 		else{ 
-			result = check_error_warning(tmp_f); // 에러인지 경고인지 파악
-			unlink(tmp_f); // STD_DIR/2020XXXX/X_error.txt 삭제
+			result = check_error_warning(tmp_f); // 에러면 0, 경고면 에러개수 저장
+			unlink(tmp_f); // errorDir에 저장하니까 원래 위치 삭제
 		}
 
-		return result;
+		return result; // 에러면 0, 경고면 에러개수 리턴
 	}
 
 	unlink(tmp_f); // STD_DIR/2020XXXX/X_error.txt 삭제
 	return true;
 }
 
-double check_error_warning(char *filename) // 컴파일 에러 혹은 경고 체크
+//컴파일 에러나 워닝 개수 함수
+double check_error_warning(char *filename) 
 {
 	FILE *fp;
 	char tmp[BUFLEN];
 	double warning = 0;
 
-	if((fp = fopen(filename, "r")) == NULL){ // X_error.txt파일 읽기 전용으로 파일 열기
+	if((fp = fopen(filename, "r")) == NULL){ 
 		fprintf(stderr, "fopen error for %s\n", filename);
 		return false;
 	}
 
-	while(fscanf(fp, "%s", tmp) > 0){ // 파일 내용 비교
-		if(!strcmp(tmp, "error:")) // 내용에 에러가 존재할 경우
+	//에러 발생시 바로 0 return
+	while(fscanf(fp, "%s", tmp) > 0){ 
+		if(!strcmp(tmp, "error:"))
 			return ERROR;
-		else if(!strcmp(tmp, "warning:")) // 내용에 경고가 존재할 경우
+		else if(!strcmp(tmp, "warning:")) //워닝 존재 시 개수 추합
 			warning += WARNING;
 	}
 
 	return warning;
 }
 
-int execute_program(char *id, char *filename) // 프로그램 실행
+// 프로그램 실행 함수 
+int execute_program(char *id, char *filename) 
 {
 	char std_fname[BUFLEN], ans_fname[BUFLEN];
 	char tmp[BUFLEN];
-	char qname[FILELEN] = { 0 }; // X | X-X
-	time_t start, end; // 프로그램 시작, 종료 시간
-	pid_t pid; // 프로그램 PID
-	int fd; // X.exe | X.stdexe 파일 디스크럽터
+	char qname[FILELEN] = { 0 }; 
+	time_t start, end;	// 프로그램 시간 기록
+	pid_t pid; 
+	int fd; /
 
 	memcpy(qname, filename, strlen(filename) - strlen(strrchr(filename, '.')));
 
-	// 정답 프로그램 실행
-	sprintf(ans_fname, "%s/%s.stdout", ansDir, qname); // ANS_DIR/X.stdout
-	fd = creat(ans_fname, 0666); // ANS_DIR/X.stdout을 0666권한으로 생성
+	// 정답 디렉토리에서 프로그램 일단 실행
+	sprintf(ans_fname, "%s/%s.stdout", ansDir, qname); 
+	fd = creat(ans_fname, 0666);
 
-	sprintf(tmp, "%s/%s.exe", ansDir, qname); // ANS_DIR/X.exe
-	redirection(tmp, fd, STDOUT); // tmp 실행 후 표준 출력 내용을 ANS_DIR/X.stdout에 저장
+	//실행결과를 리다이렉션 후 복귀
+	sprintf(tmp, "%s/%s.exe", ansDir, qname); 
+	redirection(tmp, fd, STDOUT); 
 	close(fd);
 
-	// 학생 답안 프로그램 실행 
-	sprintf(std_fname, "%s/%s/%s.stdout", stuDir, id, qname); // STD_DIR/2020XXXX/X.stdout
-	fd = creat(std_fname, 0666); // STD_DIR/2020XXXX/X.stdout을 0666 권한으로 생성
+	// 학생 답안지 실행 <STD_DIR>/학번/문제번호.stdexe
+	sprintf(std_fname, "%s/%s/%s.stdout", stuDir, id, qname);
+	fd = creat(std_fname, 0666);
 
-	sprintf(tmp, "%s/%s/%s.stdexe &", stuDir, id, qname); // STD_DIR/2020XXXX/X.stdexe &
+	sprintf(tmp, "%s/%s/%s.stdexe &", stuDir, id, qname);	// 백그라운드 실행
 
 	start = time(NULL); // 시작 시간 기록
-	redirection(tmp, fd, STDOUT); // tmp 실행 후 표준 출력 내용을 STD_DIR/2020XXXX/X.stdout으로 저장
+	redirection(tmp, fd, STDOUT);
 	
-	sprintf(tmp, "%s.stdexe", qname); // X.stdexe
-	while((pid = inBackground(tmp)) > 0){ // X.stdexe를 스레드 생성하여 실행, 정상:PID, 오류:-1
+	sprintf(tmp, "%s.stdexe", qname);
+	while((pid = inBackground(tmp)) > 0){ 
 		end = time(NULL);
 
-		if(difftime(end, start) > OVER){ // OVER:5, 실행 시간 초과
-			kill(pid, SIGKILL); // 스레드 제거
+			// 실행시간 5초 이상 지나면 스레드 죽임
+		if(difftime(end, start) > OVER){ 
+			kill(pid, SIGKILL); // pid 를 일단 죽임
 			close(fd); 
 			return false;
 		}
@@ -1588,80 +1698,92 @@ int execute_program(char *id, char *filename) // 프로그램 실행
 
 	close(fd);
 
-	return compare_resultfile(std_fname, ans_fname); // 실행 결과 비교, 같음:1, 다름:0
+	//실행결과 같으면 1 다르면 0
+	return compare_resultfile(std_fname, ans_fname); 
 }
 
-pid_t inBackground(char *name) // 스레드 생성 및 실행, name = X.stdexe, 정상:PID, 오류:0
+// 백그라운드로 실행중인 파일 pid 받아오는 함수 (스레드 실행함수 찾는 함수인듯)
+pid_t inBackground(char *name)
 {
-	pid_t pid; // PID
-	char command[64]; // 
-	char tmp[64] = { 0 }; // X.stdexe
+	pid_t pid; 
+	char command[64]; 
+	char tmp[64] = { 0 }; 
 	int fd;
 	off_t size;
 	
-	fd = open("background.txt", O_RDWR | O_CREAT | O_TRUNC, 0666); // $(PWD)/background.txt 파일을 0666권한으로 읽기 및 쓰기, 존재하지 않으면 생성, 존재하면 새로 쓰기
+	// 백그라운드 .txt 파일을 존재시 밀고 다시 쓰기
+	fd = open("background.txt", O_RDWR | O_CREAT | O_TRUNC, 0666); 
 
-	sprintf(command, "ps | grep %s", name); // ps | grep X.stdexe
-	redirection(command, fd, STDOUT); /// command 실행 후 결과(표준 출력 내용) background.txt파일에 저장
+	// 현재 실행중인 프로세스를 백그라운드가 있는지 확인해서 표준출력하고 다시 복귀
+	sprintf(command, "ps | grep %s", name);
+	redirection(command, fd, STDOUT); // command 실행 후 결과(학생디렉토리 해당문제에 리다이렉션 후) background.txt파일에 저장
 
-	lseek(fd, 0, SEEK_SET); // background.txt의 오프셋을 시작으로 이동
+	// 백그라운드 파일을 맨 앞으로 되돌리기.
+	lseek(fd, 0, SEEK_SET); 
 	read(fd, tmp, sizeof(tmp));
 
-	if(!strcmp(tmp, "")){ // background.txt 파일에 아무런 내용도 써져있지 않을 경우
+	// 백그라운드 파일에 아무것도 없으면 return 0;
+	if(!strcmp(tmp, "")){ 
 		unlink("background.txt");
 		close(fd);
 		return 0;
 	}
 
-	pid = atoi(strtok(tmp, " ")); // 프로세스가 생성되어 내용이 작성되어있을 경우 앞의 PID를 변수에 할당
+	// 실행중인 프로세스 pid로 받아오기
+	pid = atoi(strtok(tmp, " ")); 
 	close(fd);
 
-	unlink("background.txt"); 
+	unlink("background.txt"); //다썼으니까 삭제 
 	return pid;
 }
 
-int compare_resultfile(char *file1, char *file2) // 실행 결과 비교, 같음:1, 다름:0
+
+// file1 , file2 실행결가 같으면 1 다르면 0
+int compare_resultfile(char *file1, char *file2)
 {
 	int fd1, fd2;
 	char c1, c2;
 	int len1, len2;
 
-	fd1 = open(file1, O_RDONLY); // STD_DIR/2020XXXX/X.stdout
-	fd2 = open(file2, O_RDONLY); // ANS_DIR/X.stdout
+	fd1 = open(file1, O_RDONLY); 
+	fd2 = open(file2, O_RDONLY); 
 
+	// 한 글자씩 실행결과를 비교해서 같은지 틀린지 비교
 	while(1)
 	{
-		while((len1 = read(fd1, &c1, 1)) > 0){ // STD_DIR/2020XXXX/X.stdout을 한글자씩 읽어들임
+		while((len1 = read(fd1, &c1, 1)) > 0){ 
 			if(c1 == ' ') 
 				continue;
 			else 
 				break;
 		}
-		while((len2 = read(fd2, &c2, 1)) > 0){ // ANS_DIR/X.stdout을 한글자씩 읽어들임
+		while((len2 = read(fd2, &c2, 1)) > 0){ /
 			if(c2 == ' ') 
 				continue;
 			else 
 				break;
 		}
 		
-		if(len1 == 0 && len2 == 0) // 둘다 파일의 끝까지 읽었을 경우
+		if(len1 == 0 && len2 == 0) 
 			break;
 
 		to_lower_case(&c1); 
 		to_lower_case(&c2);
 
-		if(c1 != c2){ // 둘의 문자가 다를 경우
+		//두 실행결과가 다르면 false 리턴
+		if(c1 != c2){ 
 			close(fd1);
 			close(fd2);
-			return false; // 다름
+			return false; 
 		}
 	}
 	close(fd1);
 	close(fd2);
-	return true; // 같음
+	return true; 
 }
 
-void redirection(char *command, int new, int old) /// new를 old 디스크립터로 출력(system) 하고 다시 복귀, old:표준입출력
+// new를 old 디스크립터로 출력(system) 하고 다시 복귀, old:표준입출력
+void redirection(char *command, int new, int old) 
 {
 	int saved;
 
@@ -1674,7 +1796,8 @@ void redirection(char *command, int new, int old) /// new를 old 디스크립터
 	close(saved);
 }
 
-int get_file_type(char *filename) // 파일 유형 리턴
+// 파일이 .txt인지 .c 인지 구분
+int get_file_type(char *filename)
 {
 	char *extension = strrchr(filename, '.');
 
@@ -1686,7 +1809,8 @@ int get_file_type(char *filename) // 파일 유형 리턴
 		return -1;
 }
 
-void rmdirs(const char *path) // 디렉토리 제거
+//path 까지 디렉토리 제거함수
+void rmdirs(const char *path) 
 {
 	struct dirent *dirp;
 	struct stat statbuf;
@@ -1696,18 +1820,19 @@ void rmdirs(const char *path) // 디렉토리 제거
 	if((dp = opendir(path)) == NULL)
 		return;
 
-	// 해당 디렉토리 안의 내용물을 전부 제거
+	// 디렉토리 재귀 제거
 	while((dirp = readdir(dp)) != NULL)
 	{
 		if(!strcmp(dirp->d_name, ".") || !strcmp(dirp->d_name, ".."))
 			continue;
 
-		sprintf(tmp, "%s/%s", path, dirp->d_name); // tmp = 디렉토리 내부 파일
+		sprintf(tmp, "%s/%s", path, dirp->d_name); 
 
-		if(lstat(tmp, &statbuf) == -1) // 파일 상태 정보 가져오기
+		if(lstat(tmp, &statbuf) == -1) 
 			continue;
 
-		if(S_ISDIR(statbuf.st_mode)) // 디렉토리일 경우 재귀적으로 제거 ($rm -rf)
+		//디렉토리면 재귀적으로 제거
+		if(S_ISDIR(statbuf.st_mode))
 			rmdirs(tmp);
 		else
 			unlink(tmp);
@@ -1738,7 +1863,7 @@ void print_usage() // -h 옵션
 }
 
 
-
+// 틀린문제 출력함수.
 void print_wrongL (Snode* node)
 {
     if (node == NULL)
@@ -1748,7 +1873,7 @@ void print_wrongL (Snode* node)
     int comma = 0;
     for (Sclist* tmp_q = node->list_head ; tmp_q != NULL ; tmp_q = tmp_q->file_next)
     {
-        if (tmp_q->cur_score != tmp_q->score)
+        if (tmp_q->cur_score != tmp_q->score) //문제 원배점이랑 맞지 않으면 틀린문제로 간주
         {
             if (comma != 0)
                 printf(", ");
@@ -1759,12 +1884,16 @@ void print_wrongL (Snode* node)
     printf("\n");
 }
 
-
+// list 파일을 csv 파일로 출력해주는 함수
 int write_sort (StdList* list, int fd)
 {
+	if (list == NULL)
+		return false;
+		
     char tmp[20];
     write_first_row(fd);
 
+	//list를 순회하며 정렬순서에 맞게 리스트 출력
     for (Snode* id_tmp = list->head ; id_tmp != NULL ; id_tmp = id_tmp->next)
     {
         sprintf(tmp, "%s,", id_tmp->id_name);
@@ -2026,7 +2155,7 @@ Snode* append_list (StdList* list, char* id)
 }
 
 
-
+// sc 리스트 생성자
 Sclist* new_sclists (char* qname, double curS)
 {
     Sclist* node = (Sclist*)malloc(sizeof(Sclist));
@@ -2039,6 +2168,7 @@ Sclist* new_sclists (char* qname, double curS)
 }
 
 
+//sc list에 문제번호에 해당하는 원점수까지 할당
 Sclist* new_sclistss (char* qname, double curS, double s)
 {
     Sclist* node = (Sclist*)malloc(sizeof(Sclist));
@@ -2050,6 +2180,7 @@ Sclist* new_sclistss (char* qname, double curS, double s)
     return node;
 }
 
+//학생노드 생성자
 Snode* new_stdnode (char* id)
 {
     Snode* node = (Snode*)malloc(sizeof(Snode));
@@ -2063,6 +2194,7 @@ Snode* new_stdnode (char* id)
     return node;
 }
 
+//학생 리스트 생성자
 StdList* new_stdlist()
 {
     StdList* list = (StdList*)malloc(sizeof(StdList));
