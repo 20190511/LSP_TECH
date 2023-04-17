@@ -1,0 +1,4 @@
+write to standard output
+before fork
+pid = 126, glob_val = 11, loc_val = 101
+pid = 125, glob_val = 10, loc_val = 100
