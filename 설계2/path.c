@@ -9,7 +9,6 @@ int main(int argc, char* argv[])
         printf("%s\n", lex[j]);
         */
 }
-
 int realpathS2 (char *str)
 {
     if (str == NULL)
@@ -56,12 +55,18 @@ int realpathS2 (char *str)
     }
     
     cur = head->next; //더미 노드이니까 하나 삭제.
+    strcpy(tmp_path, "/");
     while(cur != NULL)
     {
-        printf("%s\n", cur->path);
+        strcat(tmp_path, cur->path);
+        strcat(tmp_path, "/");
         cur = cur->next;
     }
 
+    if (strlen(tmp_path) > 1)
+        tmp_path[strlen(tmp_path)-1] = '\0';
+
+    strcpy(str, tmp_path);
     return 1;
 }
 
