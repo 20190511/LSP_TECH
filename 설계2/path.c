@@ -28,7 +28,7 @@ int realpathS2 (char *str)
         snprintf(path, MAXPATHLEN+2, "%s/%s", cur_path, str);
     }
 
-    char **lex = path_arr(str);
+    char **lex = path_arr(path);
     if (lex == NULL)
         return 0;
 
