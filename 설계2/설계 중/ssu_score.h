@@ -46,7 +46,7 @@
 #define SNUM 100
 #define QNUM 100
 #define ARGNUM 5
-#define MAXPATHLEN  4097		/// 내 저으이 상수
+#define MAXPATHLEN  4097		/// 내가읨으로 정의한 문자열길이 상수
 
 
 
@@ -82,8 +82,17 @@ typedef struct slist {
 }StdList;
 
 
+// 04.29 상대경로-->절대경로화 해주는 링크드리스트 (토큰배열받아와서 돌릴예정.)
+typedef struct pn {
+
+    char path[MAXPATHLEN];
+    struct pn *prev;
+    struct pn *next;
+}pathNode;
+
+
+
 /**
- *  04.04 
  * 		[score_table.csv 관련]
  * 		1. 점수를 고치려면 점수테이블 score_table.csv 값을 수정해야한다.
  * 				** score_table 전역변수는 read_scoreTable() 를 호출하면 세팅된다.
@@ -275,7 +284,7 @@ int mOption = false;
 /// 20190511, 배준형 |  새로만든 설정 변수/함수 들
 
 
-
+int thread_cnt = 0;
 
 int hOption = false;
 int cOption = false;
@@ -286,7 +295,7 @@ int do_nOption (char* pathname);
 int realpathS(char* pathname, size_t size);
 int csv_check (char* pathname);
 int mkdirs(char* pathname);							//디렉토리 생성함수.
-char csvDir[BUFLEN];
+char csvDir[BUFLEN+11];
 int sortType[2];
 
 
@@ -307,7 +316,8 @@ void sort_aescendI(StdList* list); //list 의 id (학번) 오름차순으로 정
 void sort_manager(StdList* list, int type, int updown);     //sorting 관리 구조체
 void print_wrongL (Snode* node); // node 안의 틀린문제들 요소 출력
 int write_sort (StdList* list, int fd);  // 정렬된 리스트를 출력
-
+char** path_arr(char* str); // str을 / 기준으로 토큰배열화
+int realpathS2 (char *str); // 링크드리스트기반 경로찾기 함수
 
 void ssu_score(int argc, char *argv[])
 {
@@ -328,9 +338,18 @@ void ssu_score(int argc, char *argv[])
 
 	if(argc >= 3){
 		strcpy(stuDir, argv[1]);
-		realpathS(stuDir, BUFLEN);
+		if(!realpathS2(stuDir))
+		{
+			printf("student Directory find error\n");
+			return;
+		}
+
 		strcpy(ansDir, argv[2]);
-		realpathS(ansDir, BUFLEN);
+		if(!realpathS2(ansDir))
+		{
+			printf("answer Directory find error\n");
+			return;
+		}
 	}
 	
 
@@ -338,10 +357,17 @@ void ssu_score(int argc, char *argv[])
 		return;
 
 	if (hOption && (nOption || mOption || cOption || pOption || sOption || tOption || eOption)) 		/// hOption 과 다른 옵션 같이오는 경우 예외처리
+	{
+		printf("the option -h cannot use with other option!\n");
 		return;
+	}
 	
+
 	if (pOption && sOption) ///p옵션과 s 옵션이 같이오는 경우 
+	{
+		printf("the option cannot use with -p and -s (linked list collision)\n");
 		return;
+	}
 
 	if (hOption)
 	{
@@ -389,20 +415,50 @@ void ssu_score(int argc, char *argv[])
 
 	/// 수정 saved_path-> ansDir
 	chdir(ansDir);
-	set_scoreTable(ansDir);				/// score Table은 이미 존재하지 않으면 에러처리
 	
 	if(mOption)
 	{
 		char filename[BUFLEN] = {0,};
 		sprintf(filename, "./%s", "score_table.csv");
+		realpathS2(filename);
 		if (access(filename, R_OK) == -1)		//파일 접근 불가 시 에러처리
+		{
+			printf("%s is not existed\n", filename);
 			return;
+		}
 		do_mOption();			
 	}
 		
 
+	set_scoreTable(ansDir);				/// score Table은 이미 존재하지 않으면 에러처리
 	set_idTable(stuDir);
 
+	if (tOption)
+	{
+		for (int cnt = 0 ; cnt < thread_cnt ; cnt++)
+		{
+			int exist_check = 1;
+			for (int cntS = 0 ; cntS < QNUM ; cntS++)
+			{
+				char ques[50];
+				strcpy(ques, score_table[cntS].qname);
+				char *type = strrchr(ques, '.');
+				if (type != NULL)
+					*type = '\0';
+				if (!strcmp(ques, threadFiles[cnt]))
+				{
+					exist_check = 0;
+					break;
+				}
+			}
+
+			if (exist_check)
+			{
+				printf("the question(%s) is not existed\n", threadFiles[cnt]);
+				return;
+			}
+		}
+	}
 	/// -p, -c 옵션 테이블 체크
 	if (pOption || cOption)
 	{
@@ -420,6 +476,7 @@ void ssu_score(int argc, char *argv[])
 			
 			if (pc_check == 0)		// 인자로 받은 학번이 없는 경우 에러처리
 			{
+				printf("%s is not existed student number\n", iIDs[idx]);
 				return;
 			}
 			pc_check = 0;
@@ -447,28 +504,38 @@ int check_option(int argc, char *argv[])
 	int i, j, k;
 	int c;
 	int exist = 0;
-
+	int max_cnt = 0;
 	while((c = getopt(argc, argv, ":pce:thmsn:")) != -1)
 	{
 		switch(c){
 			case 'n':
 				nOption = true;
 				if (optarg == NULL)			// 인자가 없는 경우 예외처리
+				{
+					printf("n option with no arguement error\n");
 					return false;
+				}
 				strcpy(csvDir, optarg);
 				break;
 			case 'c':
 				cOption = true;
 				i = optind;
 				j = 0;
+				max_cnt = 0; // 최대개수 넘어갈 때 한줄로 출력받기 위한 테크닉
 				while(i < argc && argv[i][0] != '-'){
 					if(j >= ARGNUM)
-						printf("Maximum Number of Argument Exceeded. :: %s\n", argv[i]);
+					{
+						if (max_cnt == 0)
+							printf("Maximum Number of Argument Exceeded. ::");
+						max_cnt++;
+						printf(" %s", argv[i]);
+					}
 					else
 					{
 						if (j == 0 && iIDs_check)		// 인자를 중복으로 받은 경우 예외처리
 						{
 							iIDs_check = -1;
+							printf("Option Error, p,c option is set option\n");
 							return false;
 						}
 						strcpy(iIDs[j], argv[i]);
@@ -478,20 +545,30 @@ int check_option(int argc, char *argv[])
 					i++;
 					j++;
 				}
+				if (max_cnt > 0)
+					printf("\n");
+
 				break;
 
 			case 'p':
 				pOption = true;
 				i = optind;
 				j = 0;
+				max_cnt = 0;
 				while(i < argc && argv[i][0] != '-'){
 					if(j >= ARGNUM)
-						printf("Maximum Number of Argument Exceeded. :: %s\n", argv[i]);
+					{
+						if (max_cnt == 0)
+							printf("Maximum Number of Argument Exceeded. ::");
+						max_cnt++;
+						printf(" %s", argv[i]);
+					}
 					else
 					{
 						if (j == 0 && iIDs_check)		// 인자를 중복으로 받은 경우 예외처리
 						{
 							iIDs_check = -1;
+							printf("Option Error, p,c option is set option\n");
 							return false;
 						}
 						strcpy(iIDs[j], argv[i]);
@@ -501,6 +578,9 @@ int check_option(int argc, char *argv[])
 					i++;
 					j++;
 				}
+				if (max_cnt > 0)
+					printf("\n");
+
 				break;
 			case 'h':
 				hOption = 1;
@@ -508,10 +588,16 @@ int check_option(int argc, char *argv[])
 			case 's':
 				sOption = true;
 				i = optind;
-				if (i+2 < argc && argv[i][0] != '-')
+				if (i+2 < argc && argv[i+2][0] != '-')
+				{
+					printf("-s option arguement error\n");
 					return false; 
+				}
 				if (argc < i+2 || strlen(argv[i]) == 0 || strlen(argv[i+1]) == 0)	// 인자처리 매끄럽지 않으면 에러처리
+				{
+					printf("-s option arguement error\n");
 					return false;
+				}
 
 				if (!strcmp(argv[i], "stdid") | !strcmp(argv[i], "score"))
 				{
@@ -521,21 +607,36 @@ int check_option(int argc, char *argv[])
 						sortType[0] = 1;
 				}
 				else // 첫 인자가 stdid 나 score 가 아니면 예외처리
+				{
+					printf("this option %s is not used please choose one of <stdid | score>\n", argv[i]);
 					return false;
+				}
 
 				if (!strcmp(argv[i+1], "1") || !strcmp(argv[i+1], "-1"))
 				{
 					sortType[1] = atoi(argv[i+1]);
 				}
+				else
+				{
+					printf("this option %s is not used please choose one of <1 | -1>\n", argv[i+1]);
+					return false;
+				}
 				break;
 			case 'e':
 				eOption = true;
 				strcpy(errorDir, optarg);
-				realpathS(errorDir, BUFLEN); 			/// 상대경로 --> 절대경로화
+				if (!realpathS2(errorDir)) 			/// 상대경로 --> 절대경로화
+				{
+					printf("-e option Arguement path error\n");
+					return false;
+				}
 				if(access(errorDir, F_OK) < 0)
 				{
 					if (mkdirs(errorDir) < 0)
+					{
+						printf("error directory make error \n");
 						return false;
+					}
 					mkdir(errorDir, 0755);
 				}
 				else{
@@ -548,16 +649,26 @@ int check_option(int argc, char *argv[])
 				i = optind;
 				j = 0;
 
+				max_cnt = 0; // 최대개수 넘어갈 때 한줄로 출력받기 위한 테크닉
+				// 초과 문제수 출력 부분 수정
 				while(i < argc && argv[i][0] != '-'){
 
 					if(j >= ARGNUM)
-						printf("Maximum Number of Argument Exceeded.  :: %s\n", argv[i]);
+					{
+						if (max_cnt == 0)
+							printf("Maximum Number of Argument Exceeded. ::");
+						max_cnt++;
+						printf(" %s", argv[i]);
+					}
 					else{
 						strcpy(threadFiles[j], argv[i]);
+						thread_cnt++;
 					}
 					i++; 
 					j++;
 				}
+				if (max_cnt > 0)
+					printf("\n");
 				break;
 			case 'm':			 
 				mOption = true;
@@ -566,7 +677,7 @@ int check_option(int argc, char *argv[])
 				return false;
 			case '?':
 				if (optopt == '1' && sOption)
-					return true;
+					break;
 				else
 				{
 					printf("Unkown option %c\n", optopt);
@@ -585,11 +696,17 @@ int do_nOption (char* pathname)
 	char tmpP [MAXPATHLEN] = {0,};
 	strcpy(tmpP, pathname);
 	
-	if (!realpathS(tmpP, MAXPATHLEN))			// 길이 제한 오류처리
+	if (!realpathS2(tmpP))			// 길이 제한 오류처리
+	{
+		printf("%s convert to full path error\n",pathname);
 		return false;
+	}
 	
 	if (!csv_check(tmpP))			// csv 파일 아닌 경우 삭제
+	{
+		printf("%s is not csv file\n", pathname);
 		return false;
+	}
 
 	strcpy(csvDir, tmpP);
 	mkdirs(tmpP); 			// ansDir 부모디렉토리까지 디렉토리 생성.
@@ -1137,10 +1254,10 @@ void score_students() // score.csv 생성
 			}
 		}
 
-		int tmp_score = score_student(fd, id_table[num], stdnode); // 빈칸문제 계산
+		double tmp_score = score_student(fd, id_table[num], stdnode); // 빈칸문제 계산
 		if (cOption)
 		{
-			if (print_check == 0)
+			if (iIDs_cnt == 0)
 				score2 += tmp_score;
 			else
 			{
@@ -1163,7 +1280,7 @@ void score_students() // score.csv 생성
 	// cOption 존재 시 아래에 정렬 함수 + for 문 출력함수 생성
 	if (cOption)
 	{
-		if (print_check == 0)
+		if (iIDs_cnt == 0)
 			printf("Total average : %.2f\n", score / num);
 		else
 			printf("Total average : %.2f\n", score2 / print_check);
@@ -1187,7 +1304,7 @@ double score_student(int fd, char *id, Snode* std_node)
 	double result; 
 	double score = 0;
 	int i;
-	char tmp[BUFLEN];
+	char tmp[BUFLEN*2];
 	int size = sizeof(score_table) / sizeof(score_table[0]); // score_table 데이터 개수
 
 	if ((pOption || sOption) && std_node == NULL)	/// 노드 존재X시 긴급종료
@@ -1389,7 +1506,7 @@ int score_blank(char *id, char *filename)
 	char tokens[TOKEN_CNT][MINLEN]; 
 	node *std_root = NULL, *ans_root = NULL;
 	int idx, start;
-	char tmp[BUFLEN];
+	char tmp[BUFLEN*2];
 	char s_answer[BUFLEN], a_answer[BUFLEN]; 
 	char qname[FILELEN] = { 0 }; 
 	int fd_std, fd_ans; 
@@ -1438,7 +1555,7 @@ int score_blank(char *id, char *filename)
 	
 	//정답 가져오기
 	sprintf(tmp, "%s/%s", ansDir, filename); 
-	fd_ans = open(tmp, O_RDONLY)
+	fd_ans = open(tmp, O_RDONLY);
 
 	while(1)
 	{
@@ -1555,8 +1672,8 @@ int is_thread(char *qname)
 double compile_program(char *id, char *filename)
 {
 	int fd;
-	char tmp_f[BUFLEN], tmp_e[BUFLEN];
-	char command[BUFLEN];
+	char tmp_f[BUFLEN+142], tmp_e[BUFLEN+142];
+	char command[BUFLEN*2+310];
 	char qname[FILELEN] = { 0 };
 	int isthread;
 	off_t size;
@@ -1609,7 +1726,7 @@ double compile_program(char *id, char *filename)
 		{
 			sprintf(tmp_e, "%s/%s", errorDir, id); //에러 디렉토리에 학생 학번 저장 <errorDir>/id
 			
-			realpath(tmp_e, tmp_e); //상대경로->절대경로화 (realpathS 로 처리해주긴함.)
+			realpath(tmp_e, tmp_e); //상대경로->절대경로화 (realpathS2 로 처리해주긴함.)
 			
 			if(access(tmp_e, F_OK) < 0) //디렉토리가 없으면 디렉토리 생성
 				mkdir(tmp_e, 0755);
@@ -1657,12 +1774,12 @@ double check_error_warning(char *filename)
 // 프로그램 실행 함수 
 int execute_program(char *id, char *filename) 
 {
-	char std_fname[BUFLEN], ans_fname[BUFLEN];
-	char tmp[BUFLEN];
+	char std_fname[BUFLEN*2], ans_fname[BUFLEN*2];
+	char tmp[BUFLEN*2];
 	char qname[FILELEN] = { 0 }; 
 	time_t start, end;	// 프로그램 시간 기록
 	pid_t pid; 
-	int fd; /
+	int fd; 
 
 	memcpy(qname, filename, strlen(filename) - strlen(strrchr(filename, '.')));
 
@@ -1757,10 +1874,10 @@ int compare_resultfile(char *file1, char *file2)
 			else 
 				break;
 		}
-		while((len2 = read(fd2, &c2, 1)) > 0){ /
+		while((len2 = read(fd2, &c2, 1)) > 0){ 
 			if(c2 == ' ') 
 				continue;
-			else 
+			else
 				break;
 		}
 		
@@ -2202,4 +2319,112 @@ StdList* new_stdlist()
     list->id_cnt = 0;
 
     return list;
+}
+
+
+
+int realpathS2 (char *str)
+{
+    if (str == NULL)
+        return 0;
+    int idx = 0;
+    char* home_path = getenv("HOME");
+    char cur_path[MAXPATHLEN];
+    getcwd(cur_path, MAXPATHLEN);
+    char *tmp_path = (char*)malloc(MAXPATHLEN);
+    char *path = (char*)malloc(MAXPATHLEN);
+     
+    strcpy(path, str);
+    if (path[0] == '~') {
+        snprintf(path, MAXPATHLEN, "%s/%s", home_path, str);
+    }
+    else if (path[0] != '/'){
+        snprintf(path, MAXPATHLEN+2, "%s/%s", cur_path, str);
+    }
+
+    char **lex = path_arr(path);
+    if (lex == NULL)
+        return 0;
+
+    pathNode* head = (pathNode*)malloc(sizeof(pathNode));       //더미노드 생성.
+    pathNode* cur = head;
+
+    //설계과제1 응용: 링크드리스트로 경로 받아서 . 면 for문 passing, .. 이면 pop 형태로 제작.
+    for (idx = 0 ; lex[idx] != NULL ; idx++)
+    {
+        if (!strcmp(lex[idx], "."))
+            continue;
+        else if (!strcmp(lex[idx], ".."))
+        {
+            if (cur->prev == NULL)
+            {
+                printf("this path %s is wrong! (out of root path)\n", str);
+                return 0;
+            }
+            cur = cur->prev;
+            cur->next = NULL;
+            continue;
+        }
+
+        pathNode* newNode = (pathNode*)malloc(sizeof(pathNode));
+        strcpy(newNode->path, lex[idx]);
+        cur->next = newNode;
+        newNode->prev = cur;
+        cur = newNode;
+    }
+    
+    cur = head->next; //더미 노드이니까 하나 삭제.
+    strcpy(tmp_path, "/");
+    while(cur != NULL)
+    {
+        strcat(tmp_path, cur->path);
+        strcat(tmp_path, "/");
+        cur = cur->next;
+    }
+
+    if (strlen(tmp_path) > 1)
+        tmp_path[strlen(tmp_path)-1] = '\0';
+
+    strcpy(str, tmp_path);
+    return 1;
+}
+
+// 경로 /home/junhyeong/go2/a.c 를 home,junhyeong,go2,a.c 형태로 분할함.
+char** path_arr(char* str)
+{
+    if (str == NULL)
+        return NULL;
+    
+    char* ptr = str;
+    char tok_path[MAXPATHLEN];
+    int tk_cnt = 0;
+    int i;
+    while (*ptr != '\0')
+    {        
+        if (*ptr == '/')
+            tk_cnt++;
+        ptr++;
+    }
+    if (str[0] == '/')
+        tk_cnt--;
+
+    if (tk_cnt == 0)
+        return NULL;
+    
+    // / 기준으로 배열을 만듦. 배열의 마지막엔 NULL이 들어감.
+    char **lexeme_path = (char**)malloc(sizeof(char*) * (tk_cnt+1));
+    strcpy(tok_path, str);
+    
+    ptr = strtok(tok_path, "/");
+    for (i = 0 ; ptr != NULL ; i++)
+    {
+        if (ptr == NULL)
+            break;
+        
+        lexeme_path[i] = (char*)malloc(sizeof(tok_path));
+        strcpy(lexeme_path[i], ptr);
+        ptr = strtok(NULL, "/");
+    }
+    lexeme_path[i] = NULL;
+    return lexeme_path;
 }
