@@ -1,12 +1,14 @@
-typedef struct pn {
+char** path_arr(char* str); // str을 / 기준으로 토큰배열화
+int realpathS2 (char *str); // 링크드리스트기반 경로찾기 함수
 
-    char path[MAXPATHLEN];
-    struct pn *prev;
-    struct pn *next;
-}pathNode;
-char** path_arr(char* str);
-int realpathS2 (char *str);
-
+int main(int argc, char* argv[])
+{
+    int lex = realpathS2(argv[1]);
+    /*
+    for (int j = 0 ; lex[j] != NULL ; j++)
+        printf("%s\n", lex[j]);
+        */
+}
 
 int realpathS2 (char *str)
 {
@@ -64,6 +66,7 @@ int realpathS2 (char *str)
 }
 
 
+// 경로 /home/junhyeong/go2/a.c 를 home,junhyeong,go2,a.c 형태로 분할함.
 char** path_arr(char* str)
 {
     if (str == NULL)
@@ -85,6 +88,7 @@ char** path_arr(char* str)
     if (tk_cnt == 0)
         return NULL;
     
+    // / 기준으로 배열을 만듦. 배열의 마지막엔 NULL이 들어감.
     char **lexeme_path = (char**)malloc(sizeof(char*) * (tk_cnt+1));
     strcpy(tok_path, str);
     
