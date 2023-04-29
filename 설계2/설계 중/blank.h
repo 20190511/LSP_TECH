@@ -149,7 +149,7 @@ void compare_tree(node *root1,  node *root2, int *result) // 같음:1, 다름:0
 			*result = false;
 			return;
 		}
-
+ 
 		// 같거나 다른 연산인 경우
 		if(!strcmp(root1->name, "==") || !strcmp(root1->name, "!=")) 
 		{
@@ -687,11 +687,6 @@ int make_tokens(char *str, char tokens[TOKEN_CNT][MINLEN])
 }
 
 
-
-
-/***** 여기까지 분석 완*/
-
-
 // 해당 token 을 바탕으로 파스 트리 생성 (parentheses 괄호개수)
 node *make_tree(node *root, char (*tokens)[MINLEN], int *idx, int parentheses) 
 {
@@ -727,7 +722,7 @@ node *make_tree(node *root, char (*tokens)[MINLEN], int *idx, int parentheses)
 					if(!strcmp(tokens[*idx], ")")) 
 						break;
 					
-					new = make_tree(NULL, tokens, idx, parentheses + 1)
+					new = make_tree(NULL, tokens, idx, parentheses + 1);
 					
 					if(new != NULL){ 
 						if(fstart == true){  // 노드의 header 처리와 비슷.
@@ -959,7 +954,7 @@ node *make_tree(node *root, char (*tokens)[MINLEN], int *idx, int parentheses)
 	return get_root(cur); // 만들어진 트리의 루트노드를 반환
 }
 
-//* (분석 완) 자식노드의 형제노드들을 swaping하는 함수 (next <-> prev 변경)
+// 자식노드의 형제노드들을 swaping하는 함수 (next <-> prev 변경)
 node *change_sibling(node *parent)
 {
 	node *tmp;
@@ -980,7 +975,7 @@ node *change_sibling(node *parent)
 	return parent;
 }
 
-//* name: 학생 답안 정보, parenthesese : 괄호 개수 --> node 생성자
+// name: 학생 답안 정보, parenthesese : 괄호 개수 --> node 생성자
 node *create_node(char *name, int parentheses)
 {
 	node *new;
@@ -998,7 +993,7 @@ node *create_node(char *name, int parentheses)
 	return new;
 }
 
-//* 연산자의 우선순위를 알려주는 함수 
+// 연산자의 우선순위를 알려주는 함수 
 int get_precedence(char *op) 
 {
 	int i;
@@ -1010,7 +1005,7 @@ int get_precedence(char *op)
 	return false;
 }
 
-//* 연산자가 위의 정의된 연산자 중에 존재하는지 체크 있으면 true, 없으면 false
+// 연산자가 위의 정의된 연산자 중에 존재하는지 체크 있으면 true, 없으면 false
 int is_operator(char *op)
 {
 	int i;
@@ -1028,7 +1023,7 @@ int is_operator(char *op)
 }
 
 
-//* 트리 출력함수
+// 트리 출력함수
 void print(node *cur) 
 {
 	//자식 노드가 존재하면 자식 노드로 재귀호출
@@ -1045,7 +1040,8 @@ void print(node *cur)
 	printf("%s", cur->name); //출력 (자식노드의 가장 오른쪽부터 출력 후위순회 (Right left root))
 }
 
-node *get_operator(node *cur) // 형제들의 부모 노드를 반환, 반환:parent 
+// cur 노드의 형제노드가 있으면 형 노드 반환, 없으면 parent 반환;
+node *get_operator(node *cur) 
 {
 	if(cur == NULL) 
 		return cur;
@@ -1057,7 +1053,8 @@ node *get_operator(node *cur) // 형제들의 부모 노드를 반환, 반환:pa
 	return cur->parent;
 }
 
-node *get_root(node *cur) // 트리의 최상위 노드를 반환, 반환:root
+// 트리의 루트 노드 반환
+node *get_root(node *cur) 
 {
 	if(cur == NULL)
 		return cur;
@@ -1071,7 +1068,7 @@ node *get_root(node *cur) // 트리의 최상위 노드를 반환, 반환:root
 	return cur;
 }
 
-//* (분석 완) cur의 형/부모 노드들 중 우선순위가 new보다 하나라도 높은 연산자 노드 return
+// cur의 형/부모 노드들 중 우선순위가 new보다 하나라도 높은 연산자 노드 return
 node *get_high_precedence_node(node *cur, node *new) 
 {
 	if(is_operator(cur->name)) // 연산자 값이 작을 수록 연산자 우선순위가 높음 우선순위가 높은 cur return
@@ -1096,7 +1093,7 @@ node *get_high_precedence_node(node *cur, node *new)
 		return cur; 
 }
 
-//* (분석 완) cur 노드 중 가장 부모노드쪽에 있으면서 new 노드모다 연산자 우선순위가 높은 노드 return
+// cur 노드 중 가장 부모노드쪽에 있으면서 new 노드모다 연산자 우선순위가 높은 노드 return
 node *get_most_high_precedence_node(node *cur, node *new) 
 {
 	node *operator = get_high_precedence_node(cur, new); // new보다 연산자가 높은 cur의 형/부모 노드 를 operator 할당
@@ -1120,7 +1117,7 @@ node *get_most_high_precedence_node(node *cur, node *new)
 	return saved_operator; 
 }
 
-//* (분석 완) new를 old 의 부모노드로 연결
+// new를 old 의 부모노드로 연결
 node *insert_node(node *old, node *new)
 {
 	// old 형제 노드가 존재한다면, new를 형제관계로 연결
@@ -1136,7 +1133,7 @@ node *insert_node(node *old, node *new)
 	return new;
 }
 
-//* (분석 완) 노드의 막내의 가장 오른편 노드를 return
+// 노드의 막내의 가장 오른편 노드를 return
 node *get_last_child(node *cur) 
 {
 	if(cur->child_head != NULL)
@@ -1148,7 +1145,7 @@ node *get_last_child(node *cur)
 	return cur;
 }
 
-/// 자기 자신을 미포함한 형제노드 개수 반환.
+// 자기 자신을 미포함한 형제노드 개수 반환.
 int get_sibling_cnt(node *cur)
 {
 	int i = 0;
@@ -1164,7 +1161,8 @@ int get_sibling_cnt(node *cur)
 	return i;
 }
 
-void free_node(node *cur) // 노드 연결 해제
+// cur 노드 기준으로 내려가면서 모두 free 하는 함수
+void free_node(node *cur) 
 {
 	if(cur->child_head != NULL)
 		free_node(cur->child_head);
@@ -1182,13 +1180,13 @@ void free_node(node *cur) // 노드 연결 해제
 }
 
 
-//* (분석완) 영문자나, 정수이면 true return
+// 영문자나, 정수이면 true return
 int is_character(char c)
 {
 	return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
 }
 
-//* (분석완) 타입 종류에 대해 알려주는 함수.
+// 타입 종류에 대해 알려주는 함수. (0:타입이 존재하는 문자열, 1: 아무것도 아닌 것(괄호가 캐스팅용), 2:해당타입으로 시작하는 문장)
 int is_typeStatement(char *str) 
 { 
 	char *start;
@@ -1232,7 +1230,7 @@ int is_typeStatement(char *str)
 
 }
 
-//*(분석 완) 타입을 순회하며 (타입) 이후 연산자가 오거나 문자가 온다면 (?캐스팅이라면) 해당 토큰 번호 반환 (없으면 -1)
+// 타입을 순회하며 (타입) 이후 연산자가 오거나 문자가 온다면 (?캐스팅이라면) 해당 토큰 번호 반환 (없으면 -1)
 int find_typeSpecifier(char tokens[TOKEN_CNT][MINLEN])
 {
 	int i, j;
@@ -1255,7 +1253,7 @@ int find_typeSpecifier(char tokens[TOKEN_CNT][MINLEN])
 	return -1;
 }
 
-//* (분석완) struct 토큰을 사용하면서 다음토큰의 마지막값이 문자나정수라면 --> 구조체 토큰이라면 return i; (없으면 -1)
+// struct 토큰을 사용하면서 다음토큰의 마지막값이 문자나정수라면 --> 구조체 토큰이라면 return i; (없으면 -1)
 int find_typeSpecifier2(char tokens[TOKEN_CNT][MINLEN])
 {
     int i, j;
@@ -1272,7 +1270,7 @@ int find_typeSpecifier2(char tokens[TOKEN_CNT][MINLEN])
     return -1;
 }
 
-//* (분석완) 현재 str이 모두 * 일 경우 true 아니면 false
+// 현재 str이 모두 * 일 경우 true 아니면 false
 int all_star(char *str) 
 {
 	int i;
@@ -1288,7 +1286,8 @@ int all_star(char *str)
 
 }
 
-int all_character(char *str) // 받아온 문자열 중에 알파벳 혹은 숫자가 들어있으면 1, 아니면 0 
+// str 에서 영문자나 숫자가 하나라도 존재하면 rturn 1;
+int all_character(char *str)  
 {
 	int i;
 
@@ -1299,80 +1298,98 @@ int all_character(char *str) // 받아온 문자열 중에 알파벳 혹은 숫�
 	
 }
 
-int reset_tokens(int start, char tokens[TOKEN_CNT][MINLEN]) // 형변환, struct와 같은 토큰을 읽었을 경우 문법 확인 후 결과 리턴, start = 형변환 | struct가 위치한 토큰 넘버
+
+// token에 캐스팅이나, struct 가 있는 경우 문법확인 (괄호 짝 갯수) 및 토큰 정렬.
+// 함수 start : 캐스팅 , struct 번호
+int reset_tokens(int start, char tokens[TOKEN_CNT][MINLEN]) 
 {
+	//j 가 start를 움직이며 에러 체크
 	int i;
-	int j = start - 1; // 커서역할
+	int j = start - 1; 
 	int lcount = 0, rcount = 0;
 	int sub_lcount = 0, sub_rcount = 0;
 
 	if(start > -1){
-		if(!strcmp(tokens[start], "struct")) {	// 불러온 토큰이 struct 라면	
+		// 토큰이 struct 와 일치하는 경우 --> 다음토큰과 struct 변수명 이런식으로 합침
+		if(!strcmp(tokens[start], "struct")) {		
 			strcat(tokens[start], " ");
-			strcat(tokens[start], tokens[start+1]); // struct + ' ' + 변수명과 같은 형태로 문자열 합침
+			strcat(tokens[start], tokens[start+1]); 
 
-			for(i = start + 1; i < TOKEN_CNT - 1; i++){ // 토큰 배열 재정리
+			//앞 뒤 토큰을 합친 후 뒷 토큰 앞으로 계속 땡겨옴 (배열의 한계..)
+			for(i = start + 1; i < TOKEN_CNT - 1; i++){ 
 				strcpy(tokens[i], tokens[i + 1]);
 				memset(tokens[i + 1], 0, sizeof(tokens[0]));
 			}
 		}
 
-		else if(!strcmp(tokens[start], "unsigned") && strcmp(tokens[start+1], ")") != 0) { // 현재 토큰이 unsigned이고 다음 토큰이 ')'일 경우
-			strcat(tokens[start], " "); // unsigned + ' ' + 그 다음 토큰 두개를 하나의 토큰으로 합침(ex. unsigned char i)
+		//현 토큰이 unsigned 이고 다음 토큰이 바로 괄호를 닫지 않는 경우 --> 다음 토큰과 unsigned 변수명 형태로 모두 연결 exunisgned char 이런식으로 합치는 듯.
+		else if(!strcmp(tokens[start], "unsigned") && strcmp(tokens[start+1], ")") != 0) { 
+			strcat(tokens[start], " "); 
 			strcat(tokens[start], tokens[start + 1]);	     
 			strcat(tokens[start], tokens[start + 2]);
 
-			for(i = start + 1; i < TOKEN_CNT - 1; i++){ // 토큰 배열 재정리
+			//앞 뒤 토큰을 합친 후 뒷 토큰 앞으로 계속 땡겨옴 (배열의 한계..)
+			for(i = start + 1; i < TOKEN_CNT - 1; i++){ 
 				strcpy(tokens[i], tokens[i + 1]);
 				memset(tokens[i + 1], 0, sizeof(tokens[0]));
 			}
 		}
 
-     		j = start + 1;           
-        	while(!strcmp(tokens[j], ")")){ // 현재 토큰 뒤에 ')'가 나온 횟수 측정
-                	rcount ++;
-                	if(j==TOKEN_CNT)
-                        	break;
-                	j++;
-        	}
+		j = start + 1;           
+		//현 토큰 뒤의 괄호 닫기 ) 횟수 측정
+		while(!strcmp(tokens[j], ")")){ 
+				rcount ++;
+				if(j==TOKEN_CNT)
+					break;
+				j++;
+		}
 	
 		j = start - 1;
-		while(!strcmp(tokens[j], "(")){ // 현재 토큰 앞에 '(' 나온 횟수 측정
+		//현 토큰 앞의 괄호 열기 ( 횟수 측정
+		while(!strcmp(tokens[j], "(")){
         	        lcount ++;
                 	if(j == 0)
-                        	break;
+						break;
                		j--;
 		}
-		if( (j!=0 && is_character(tokens[j][strlen(tokens[j])-1]) ) || j==0) // '('의 왼쪽 끝의 왼쪽에 char형 변수가 있거나 아무것도 없는 경우
-			lcount = rcount; // 괄호의 짝이 같다고 판단
 
-		if(lcount != rcount) // 괄호의 짝이 다를경우
+		if( (j!=0 && is_character(tokens[j][strlen(tokens[j])-1]) ) || j==0)
+			lcount = rcount; 
+
+		//괄호 개수가 다르다면 false return
+		if(lcount != rcount) 
 			return false;
 
-		if( (start - lcount) >0 && !strcmp(tokens[start - lcount - 1], "sizeof")){ // 토큰을 감싸고 있는 왼쪽괄호 전에 sizeof가 있을 경우
+		//현 토큰 괄호 ( 앞에 sizeof가 존재하면 true return 하고 종료
+		if( (start - lcount) >0 && !strcmp(tokens[start - lcount - 1], "sizeof")){
 			return true; 
 		}
 		
-		else if((!strcmp(tokens[start], "unsigned") || !strcmp(tokens[start], "struct")) && strcmp(tokens[start+1], ")")) { // unsigned나 struct의 바로 뒤에 닫는 괄호가 나온 경우
-			strcat(tokens[start - lcount], tokens[start]); // 불필요하게 씌어진 괄호들을 제거
+		// unsinged 나 struct 뒤에 바로 괄호 ) 가 오면 필요없는 괄호로 생각하고 괄호제거
+		else if((!strcmp(tokens[start], "unsigned") || !strcmp(tokens[start], "struct")) && strcmp(tokens[start+1], ")")) { 
+			strcat(tokens[start - lcount], tokens[start]);
 			strcat(tokens[start - lcount], tokens[start + 1]);
 			strcpy(tokens[start - lcount + 1], tokens[start + rcount]);
 		 
-			for(int i = start - lcount + 1; i < TOKEN_CNT - lcount -rcount; i++) { // 제거한 이후의 토큰들을 정렬
+		 	//괄호 제거 후 토큰 앞으로 땡겨오고 남는 토큰들은 초기화
+			for(int i = start - lcount + 1; i < TOKEN_CNT - lcount -rcount; i++) { 
 				strcpy(tokens[i], tokens[i + lcount + rcount]);
-				memset(tokens[i + lcount + rcount], 0, sizeof(tokens[0])); // 그 이후의 토큰 초기화
+				memset(tokens[i + lcount + rcount], 0, sizeof(tokens[0]));
 			}
 
 
 		}
- 		else{ // 그 외의 경우
-			if(tokens[start + 2][0] == '('){ // // 현재 토큰으로부터 2번째 뒤의 토큰에 여는 괄호가 있을 경우
+ 		else{ // 그 외의 괄호처리의 경우
+			// 현 토큰의 2번째 뒤에 ( 가 온 경우 그 뒤에 안에 계속 ( ) 괄호가 존재하는 경우
+			if(tokens[start + 2][0] == '('){ 
 				j = start + 2;
-				while(!strcmp(tokens[j], "(")){ // 그 뒤의 여는괄호가 닫힐 때까지 
+				// 지금 토큰으로부터 ( 괄호가 멈출때까지 j 증가
+				while(!strcmp(tokens[j], "(")){ 
 					sub_lcount++;
 					j++;
 				} 	
-				if(!strcmp(tokens[j + 1],")")){ // 여는 괄호 바로 다음 토큰이 닫는괄호 일경우
+				// j 한칸 뒤에 ) 가 오지않으면 false return ) 가 온다면 ) 가 닫힐때까지 계속 sub_rcount 증가
+				if(!strcmp(tokens[j + 1],")")){ 
 					j = j + 1;
 					while(!strcmp(tokens[j], ")")){
 						sub_rcount++;
@@ -1382,21 +1399,25 @@ int reset_tokens(int start, char tokens[TOKEN_CNT][MINLEN]) // 형변환, struct
 				else 
 					return false;
 
-				if(sub_lcount != sub_rcount) // 내부 괄호의 개수가 다른 경우
+
+				// 현 토큰 내부의 내부 ( ) 개수가 맞지 않으면 false return
+				if(sub_lcount != sub_rcount)
 					return false;
 				
-				strcpy(tokens[start + 2], tokens[start + 2 + sub_lcount]); // start + 2 이후에 들어간 여ㅑ는 괄호를 제거	
+				// start 2칸 이후의 내부의 괄호들 모두 제거하고 토큰 앞으로땡기고 초기화
+				strcpy(tokens[start + 2], tokens[start + 2 + sub_lcount]);
 				for(int i = start + 3; i<TOKEN_CNT; i++)
-					memset(tokens[i], 0, sizeof(tokens[0])); // 그 이후의 토큰은 의미 없으므로 초기화
+					memset(tokens[i], 0, sizeof(tokens[0])); 
 
 			}
-			strcat(tokens[start - lcount], tokens[start]); // 괄호 제거
+			// 괄호 제거 진행 --> 제거한만큼 토큰 정리
+			strcat(tokens[start - lcount], tokens[start]);
 			strcat(tokens[start - lcount], tokens[start + 1]);
 			strcat(tokens[start - lcount], tokens[start + rcount + 1]);
 		 
-			for(int i = start - lcount + 1; i < TOKEN_CNT - lcount -rcount -1; i++) { // 토큰 재정리
+			for(int i = start - lcount + 1; i < TOKEN_CNT - lcount -rcount -1; i++) { 
 				strcpy(tokens[i], tokens[i + lcount + rcount +1]);
-				memset(tokens[i + lcount + rcount + 1], 0, sizeof(tokens[0])); // 이후 토큰 초기화
+				memset(tokens[i + lcount + rcount + 1], 0, sizeof(tokens[0])); 
 
 			}
 		}
@@ -1404,7 +1425,7 @@ int reset_tokens(int start, char tokens[TOKEN_CNT][MINLEN]) // 형변환, struct
 	return true;
 }
 
-//* (분석완) 토큰을 모두 비우는 (초기화) 하는 함수
+// 토큰을 모두 비우는 (초기화) 하는 함수
 void clear_tokens(char tokens[TOKEN_CNT][MINLEN])
 {
 	int i;
@@ -1413,7 +1434,8 @@ void clear_tokens(char tokens[TOKEN_CNT][MINLEN])
 		memset(tokens[i], 0, sizeof(tokens[i]));
 }
 
-char *rtrim(char *_str) // 문자열 오른쪽 공백 제거
+// _str 오른쪽 공백 제거
+char *rtrim(char *_str) 
 {
 	char tmp[BUFLEN];
 	char *end;
@@ -1428,7 +1450,8 @@ char *rtrim(char *_str) // 문자열 오른쪽 공백 제거
 	return _str;
 }
 
-char *ltrim(char *_str) // 문자열 왼쪽 공백 제거
+// _str 왼쪽 공백 제거
+char *ltrim(char *_str)
 {
 	char *start = _str;
 
@@ -1438,7 +1461,8 @@ char *ltrim(char *_str) // 문자열 왼쪽 공백 제거
 	return _str;
 }
 
-char* remove_extraspace(char *str) // 잔여 공백 제거
+// 잔여 공백 제거
+char* remove_extraspace(char *str)
 {
 	int i;
 	char *str2 = (char*)malloc(sizeof(char) * BUFLEN);
@@ -1452,7 +1476,7 @@ char* remove_extraspace(char *str) // 잔여 공백 제거
 		position = end - start;
 	
 		strncat(temp, str, position); // #include
-		strncat(temp, " ", 1); // #include + ' '
+		strcat(temp, " "); // #include + ' '
 		strncat(temp, str + position, strlen(str) - position + 1); // #include + ' ' + <filename>
 
 		str = temp;		
@@ -1480,8 +1504,8 @@ char* remove_extraspace(char *str) // 잔여 공백 제거
 }
 
 
-
-void remove_space(char *str) // 문자열 공백 제거 
+// str 공백 제거
+void remove_space(char *str)
 {
 	char* i = str;
 	char* j = str;
@@ -1495,7 +1519,8 @@ void remove_space(char *str) // 문자열 공백 제거
 	*i = 0;
 }
 
-int check_brackets(char *str) // 괄호 짝 확인 함수, 맞음:1, 틀림:0
+// ( ) 개수 짝이 맞으면 1, 틀리면 0
+int check_brackets(char *str) 
 {
 	char *start = str;
 	int lcount = 0, rcount = 0;
@@ -1519,7 +1544,9 @@ int check_brackets(char *str) // 괄호 짝 확인 함수, 맞음:1, 틀림:0
 		return 1;
 }
 
-int get_token_cnt(char tokens[TOKEN_CNT][MINLEN]) // 토큰의 개수 반환
+
+// 총 토큰 개수 return
+int get_token_cnt(char tokens[TOKEN_CNT][MINLEN])
 {
 	int i;
 	
