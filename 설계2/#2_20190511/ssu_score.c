@@ -65,7 +65,7 @@ void ssu_score(int argc, char *argv[])
 
 	memset(saved_path, 0, BUFLEN);					// 프로그램이 시작된 위치 saved_path 기록.
 
-	if(argc >= 3){
+	if(argc >= 3){ // argc 가 3 이상이면 <STD_DIR> 과 <ANS_DIR> 상대경로 --> 절대경로화 작업 (모든 옵션 h제외 공통작업)
 		strcpy(stuDir, argv[1]);
 		if(!realpathS2(stuDir))
 		{
@@ -82,6 +82,7 @@ void ssu_score(int argc, char *argv[])
 	}
 	
 
+	// 옵션 처리
 	if(!check_option(argc, argv))
 		return;
 
@@ -92,12 +93,13 @@ void ssu_score(int argc, char *argv[])
 	}
 	
 
-	if (pOption && sOption) ///p옵션과 s 옵션이 같이오는 경우 
+	if (pOption && sOption) //p옵션과 s 옵션이 같이오는 경우 
 	{
 		printf("the option cannot use with -p and -s (linked list collision)\n");
 		return;
 	}
 
+	// h 옵션인 경우 출력
 	if (hOption)
 	{
 		print_usage();
@@ -164,8 +166,10 @@ void ssu_score(int argc, char *argv[])
 	}
 		
 
+	//학번 가져오기
 	set_idTable(stuDir);
 
+	// t옵션인데 문제번호 없는 경우 에러처리용 블럭
 	if (tOption)
 	{
 		for (int cnt = 0 ; cnt < thread_cnt ; cnt++)
@@ -192,7 +196,7 @@ void ssu_score(int argc, char *argv[])
 			}
 		}
 	}
-	/// -p, -c 옵션 테이블 체크
+	/// -p, -c 옵션 테이블 체크 (인자로 받은 학번이 존재하지 않으면 에러처리)
 	if (pOption || cOption)
 	{
 		for (int idx = 0 ; idx < iIDs_cnt ; idx++)
@@ -232,6 +236,7 @@ void ssu_score(int argc, char *argv[])
 	return;
 }
 
+// 옵션전문 처리 함수
 int check_option(int argc, char *argv[])
 {
 	int i, j, k;
@@ -241,7 +246,7 @@ int check_option(int argc, char *argv[])
 	while((c = getopt(argc, argv, ":pce:thmsn:")) != -1)
 	{
 		switch(c){
-			case 'n':
+			case 'n': // n 옵션
 				nOption = true;
 				if (optarg == NULL)			// 인자가 없는 경우 예외처리
 				{
@@ -250,7 +255,7 @@ int check_option(int argc, char *argv[])
 				}
 				strcpy(csvDir, optarg);
 				break;
-			case 'c':
+			case 'c': // c 옵션
 				cOption = true;
 				i = optind;
 				j = 0;
@@ -283,14 +288,14 @@ int check_option(int argc, char *argv[])
 
 				break;
 
-			case 'p':
+			case 'p': // p 옵션
 				pOption = true;
 				i = optind;
 				j = 0;
 				max_cnt = 0;
 				while(i < argc && argv[i][0] != '-'){
 					if(j >= ARGNUM)
-					{
+					{	// Exceed 한 줄로 받기 위한 테크닉
 						if (max_cnt == 0)
 							printf("Maximum Number of Argument Exceeded. ::");
 						max_cnt++;
@@ -315,13 +320,13 @@ int check_option(int argc, char *argv[])
 					printf("\n");
 
 				break;
-			case 'h':
+			case 'h': 
 				hOption = 1;
 				break;
-			case 's':
+			case 's': //s 옵션처리
 				sOption = true;
 				i = optind;
-				if (i+2 < argc && argv[i+2][0] != '-')
+				if (i+2 < argc && argv[i+2][0] != '-') //s옵션 뒤에 인자가 2개 이상오면 에러처리
 				{
 					printf("-s option arguement error\n");
 					return false; 
@@ -332,6 +337,7 @@ int check_option(int argc, char *argv[])
 					return false;
 				}
 
+				// 첫 번째 인자에 <stdid | score> 이외에 문자열이 올 시 에러처리
 				if (!strcmp(argv[i], "stdid") | !strcmp(argv[i], "score"))
 				{
 					if (!strcmp(argv[i], "stdid"))
@@ -345,6 +351,7 @@ int check_option(int argc, char *argv[])
 					return false;
 				}
 
+				//두 번째 인자에 <1 | -1> 이외의 숫자가 오면 예외처리
 				if (!strcmp(argv[i+1], "1") || !strcmp(argv[i+1], "-1"))
 				{
 					sortType[1] = atoi(argv[i+1]);
@@ -358,16 +365,16 @@ int check_option(int argc, char *argv[])
 			case 'e':
 				eOption = true;
 				strcpy(errorDir, optarg);
-				if (!realpathS2(errorDir)) 			/// 상대경로 --> 절대경로화
+				if (!realpathS2(errorDir)) 			// <ERROR_DIR> 상대경로 --> 절대경로화
 				{
 					printf("-e option Arguement path error\n");
 					return false;
 				}
-				if(access(errorDir, F_OK) < 0)
+				if(access(errorDir, F_OK) < 0) // 해당 에러디렉토리가 없으면 디렉토리 생성
 				{
 					if (mkdirs(errorDir) < 0)
 					{
-						printf("error directory make error \n");
+						printf("error directory make error \n"); // 디렉토리 생성 실패시 에러처리
 						return false;
 					}
 					mkdir(errorDir, 0755);
@@ -377,7 +384,7 @@ int check_option(int argc, char *argv[])
 					mkdir(errorDir, 0755);
 				}
 				break;
-			case 't':
+			case 't': // t 옵션
 				tOption = true;
 				i = optind;
 				j = 0;
@@ -408,7 +415,7 @@ int check_option(int argc, char *argv[])
 				break;
 			case ':':
 				return false;
-			case '?':
+			case '?': // s 옵션일 때 -1 을 옵션으로 인식하는 경우가 존재해서 에러처리로 넣어줌
 				if (optopt == '1' && sOption)
 					break;
 				else
@@ -672,16 +679,6 @@ void do_mOption(char *ansDir)
 
 }
 
-// 현재 사용 X?
-char* get_header_char(char *header, int idx) 
-{
-	char *temp = (char *)calloc(BUFLEN, sizeof(char));
-	int i = 0;
-	while(header[idx] != ',')
-		temp[i++] = header[idx++];
-	return temp;
-}
-
 // 해당 옵션에 학번이 존재하는지 확인하는 함수
 int is_exist(char (*src)[FILELEN], char *target) 
 {
@@ -744,7 +741,6 @@ void make_scoreTable(char *ansDir)
 	double score, bscore, pscore;
 	struct dirent *dirp; 
 	DIR *dp; 
-	char tmp[BUFLEN];
 	int idx = 0;
 	int i;
 
@@ -768,7 +764,7 @@ void make_scoreTable(char *ansDir)
 
 	while((dirp = readdir(dp)) != NULL) 
 	{
-		sprintf(tmp, "%s/%s", ansDir, dirp->d_name);
+
 		if(!strcmp(dirp->d_name, ".") || !strcmp(dirp->d_name, "..")) 
 			continue;
 
@@ -862,7 +858,7 @@ void set_idTable(char *stuDir)
 	sort_idTable(num);
 }
 
-// 학번 버블 정렬 (aescend)
+// 학번 버블 정렬 (ascend)
 void sort_idTable(int size) 
 {
 	int i, j;
@@ -939,14 +935,15 @@ int get_create_type()
 	return num;
 }
 
-void score_students() // score.csv 생성
+// 학생별로 scores_student 를 돌려주는 함수 (score.csv 파일 프레임을 만들기도함)
+void score_students() 
 {
 	double score = 0;
 	double score2 = 0;
 	int num;
 	int fd;
 	char tmp[BUFLEN];
-	int size = sizeof(id_table) / sizeof(id_table[0]); // id_table 테이블 데이터 개수
+	int size = sizeof(id_table) / sizeof(id_table[0]); // QNUM 저장
 	int print_check = 0;		// c, p 옵션 학생 수
 
 	if((fd = creat(csvDir, 0666)) < 0){			// n 옵션부터 만들 것!
@@ -1046,7 +1043,7 @@ double score_student(int fd, char *id, Snode* std_node)
 	double score = 0;
 	int i;
 	char tmp[BUFLEN*2];
-	int size = sizeof(score_table) / sizeof(score_table[0]); // score_table 데이터 개수
+	int size = sizeof(score_table) / sizeof(score_table[0]); // QNUN 만큼 저장
 
 	if ((pOption || sOption) && std_node == NULL)	/// 노드 존재X시 긴급종료
 	{
@@ -1064,8 +1061,8 @@ double score_student(int fd, char *id, Snode* std_node)
 		if(access(tmp, F_OK) < 0) 
 			result = false;
 		else
-		{
-			if((type = get_file_type(score_table[i].qname)) < 0) 			// 파일 타입 가져오기
+		{	// 타입 가져오는 함수 (.txt -> 공백문제, .c 프로그램 문제)
+			if((type = get_file_type(score_table[i].qname)) < 0) 		
 				continue;
 			
 			// 빈칸문제인지 프로그램 문제인지 검사
@@ -1087,7 +1084,7 @@ double score_student(int fd, char *id, Snode* std_node)
 		}
 		else{
 			if(result == true){ // 맞은경우
-				score += score_table[i].score; /// 총점에 추가
+				score += score_table[i].score; // sum 갱신
 				sprintf(tmp, "%.2f,", score_table[i].score); 
 				
 				if (sOption)	// 맞은 경우는 sOption 에만 연결
@@ -1413,10 +1410,11 @@ double compile_program(char *id, char *filename)
 	int fd;
 	char tmp_f[BUFLEN+142], tmp_e[BUFLEN+142];
 	char command[BUFLEN*2+310];
-	char qname[FILELEN] = { 0 };
+	char qname[FILELEN];
 	int isthread;
 	off_t size;
 	double result;
+	memset(qname, 0, sizeof(qname));
 	memcpy(qname, filename, strlen(filename) - strlen(strrchr(filename, '.')));
 	
 	//스레드 옵션 t 옵션 사용함수인지 확인
@@ -1537,7 +1535,7 @@ int execute_program(char *id, char *filename)
 
 	sprintf(tmp, "%s/%s/%s.stdexe &", stuDir, id, qname);	// 백그라운드 실행
 
-	start = time(NULL); // 시작 시간 기록
+	start = time(NULL); // 시간 기록 (5초)
 	redirection(tmp, fd, STDOUT);
 	
 	sprintf(tmp, "%s.stdexe", qname);
@@ -1638,17 +1636,17 @@ int compare_resultfile(char *file1, char *file2)
 	return true; 
 }
 
-// new를 old 디스크립터로 출력(system) 하고 다시 복귀, old:표준입출력
+// new-->old 리다이렉션하고 다시 원상태 복구하는 기능 (close 까지해줌)
 void redirection(char *command, int new, int old) 
 {
 	int saved;
 
-	saved = dup(old); /// old 를 복사한 디스크립터를 받아옴
-	dup2(new, old); // new -> old 디스크럽터 복사
+	saved = dup(old); // old 를 복사한 디스크립터를 받아옴
+	dup2(new, old); // new --> old 복사
 
 	system(command);
 
-	dup2(saved, old); /// saved -> old 디스크럽터 복사 (다시 old 위치에 old가 가도록)
+	dup2(saved, old); // saved -> old 디스크럽터 복사 (디스크립터 복귀)
 	close(saved);
 }
 
@@ -1698,13 +1696,15 @@ void rmdirs(const char *path)
 	rmdir(path);
 }
 
-void to_lower_case(char *c) // 대문자를 소문자로 변환
+// 대문자 --> 소문자 함수
+void to_lower_case(char *c) 
 {
 	if(*c >= 'A' && *c <= 'Z')
 		*c = *c + 32;
 }
 
-void print_usage() // -h 옵션
+// h 옵션 출력 함수
+void print_usage() 
 {
 	printf("Usage : ssu_score <STUDENTDIR> <TRUEDIR> [OPTION]\n");
 	printf("Option : \n");
