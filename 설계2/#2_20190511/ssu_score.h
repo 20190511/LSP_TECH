@@ -243,10 +243,10 @@ void sort_scoreTable(int size);
  * strtok(dup, "-.") 를 넣어서 dup을 - 와 . 단위로 토큰을 끊어냄
  * 해당 방식으로 1-3.txt 를 1, 3, txt 로 분리시킬 수 있음.
 */
-void get_qname_number(char *qname, int *num1, int *num2);
-int do_nOption (char* pathname);
-int realpathS(char* pathname, size_t size);
-int csv_check (char* pathname);
+void get_qname_number(char *qname, int *num1, int *num2); //, . 으로 문제 구분하는 함수
+int do_nOption (char* pathname); 
+int realpathS(char* pathname, size_t size); //초기 상대경로 절대경로화 함수 (이제안씀 링크드리스트기반으로 변경)
+int csv_check (char* pathname);  //csv 파일인지 체크용 (n옵션전용)
 int mkdirs(char* pathname);							//디렉토리 생성함수.
 Sclist* new_sclists (char* qname, double curS); //sclist 초기화함수
 Sclist* new_sclistss (char* qname, double curS, double s); //문제 배점 붙은 Sclist 초기화함수
