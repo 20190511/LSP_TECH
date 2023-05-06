@@ -11,6 +11,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <dirent.h>
+#include <ctype.h>
 
 #define PROMPT() printf("20190511> ");
 
@@ -89,9 +90,20 @@ int delNode (Mlist* list, char* path);  // return 은 해당 pid
 int free_mlist (Mlist* list); //list를 요소를 모두 free 하는 함수.
 void printM (Mlist *list); // list의 모든 요소를 출력해주는 함수.
 Mlist* read_monitorfile(); //리스트의 있는 데이터를 moitor_list.txt 로부터 입력
+int isExistMlist (Mlist* list, char* path); // 해당 리스트에 path가 있는지 확인
+int canAddMlist (Mlist* list, char* path); // 해당 리스트에 path가 같거나 포함되거나, 포함하거나 하면 오류처리
 int write_monitorfile(Mlist* list); //리스트의 있는 데이터를 moitor_list.txt 에 출력
-int open_monitor_read();
-int open_monitor_write();
+int open_monitor_read();    //monitor_list.txt read 오픈 전용
+int open_monitor_write();   //monitor_list.txt write 오픈 전용
+void print_help(); //help 출력
+
+int do_add(int argc, char* args[]);
+int do_delete(int argc, char* args[]);
+int do_help(int argc, char* args[]);
+int do_tree(int argc, char* args[]);
+
+int do_module(int option, int argc, char* args[]);
+
 int monitor_fd;
 FILE* monitor_fp;
 
@@ -125,9 +137,9 @@ char monitor_path [MAXPATHLEN];
 char* command_str [5] ={
     "add",
     "delete",
+    "tree",
     "help",
     "exit",
-    "tree"
 };
 
 
@@ -144,6 +156,7 @@ int main(void)
     while(1)
     {
         PROMPT();
+        int prompt_argc = 0;
         if (fgets(prompt_str, PROMPTLEN, stdin) == NULL) 
             continue;
 
@@ -152,12 +165,10 @@ int main(void)
             i++;
         prompt_str[i] = '\0';
 
-        if (!strcmp(prompt_str, "exit"))
-            break;
+        
 
         args = prom_args(prompt_str);
-        for (i = 0 ; args[i] != NULL ; i++)
-            printf("%s\n", args[i]);
+        for (prompt_argc = 0 ; args[prompt_argc] != NULL ; prompt_argc++);
 
         if (!strcmp(args[1], "search"))
         {
@@ -181,36 +192,236 @@ int main(void)
                 fprintf(stderr, "final module error for %s\n", pathB);
                 continue;
             }
+
+            continue;
             //printL(list);
         }
 
 
-        if (!strcmp(args[1], command_str[1]))
+        int cmd_idx = 0;
+        int result = -1;
+        for (cmd_idx = 0 ; cmd_idx < sizeof(command_str) / sizeof(command_str[0]) ; cmd_idx++)
         {
-            Mlist* list = read_monitorfile();
-            printM(list);
+            if (!strcmp(args[1], command_str[cmd_idx]))
+            {
+                result = do_module(cmd_idx, prompt_argc, args);
+                break;
+            }
 
-            int get_pid = delNode(list, "/home/junhyeong/go2/#1-solution");
-            printf("return pid is %d\n", get_pid);
-            write_monitorfile(list);
-            /*
-            Mlist* list = newMlist();
-            appendM(list, "abc", "1234");
-            appendM(list, "def", "5678");
-            appendM(list, "geh", "9001");
-            appendM(list, "ijk", "6969");
-            printM(list);
-            int pid = delNode(list, "def");
-            printf("del value = %d\n", pid);
-            printM(list);
-            */
         }
+
+        if (result == 10)
+            break;
+        else if (result == 1 || result == 0)
+            continue;
+        else
+            print_help();
+        continue;
     }
     
-    fclose(monitor_fp);
     exit(0);
-
 }
+
+int do_module(int option, int argc, char* args[])
+{
+    int result = -1;
+    switch (option)
+    {
+    case 0:
+        result = do_add (argc, args);
+        break;
+    
+    case 1:
+        result = do_delete (argc, args);
+        break;
+
+    case 2:
+        result = do_tree (argc, args);
+        break;
+    
+    case 3:
+        result = do_help (argc, args);
+        break;
+
+    case 4:
+        result = 10; //브레이크 신호
+        break;
+    }
+    return result;
+}
+
+//add 수행
+int do_add(int argc, char* args[])
+{
+    if (argc != 4 && argc != 6)
+    {
+        printf("Arguement Error!!\n");
+        print_help();
+        return false;
+    }
+
+    if (argc == 6)
+    {
+        if (strcmp(args[3], "-t"))
+        {
+            fprintf(stderr, "add option error\n");
+            return false;
+        }
+
+        int dg = 0;
+        while(args[4][dg] != '\0')
+        {
+            if (!isdigit(args[4][dg]))
+            {
+                fprintf(stderr, "<TIME> can be only INTGERS , your value is %s\n", args[4]);
+                return false;
+            }
+            dg++;
+        }
+    }
+
+    char make_path[MAXPATHLEN];
+    strcpy(make_path, args[2]);
+    if (!realpathS(make_path))
+    {
+        fprintf(stderr, "make path error : %s\n", args[2]);
+        return false;
+    }
+
+    Mlist* list = read_monitorfile();
+    if (!canAddMlist(list, make_path))
+    {
+        fprintf(stderr, "%s has already been existed in list\n",make_path);
+        free_mlist(list);
+        return false;
+    }
+
+    pid_t pid;
+    int status;
+    if((pid = fork()) < 0)
+    {
+        fprintf(stderr, "fork error\n");
+        free_mlist(list);
+        return false;
+    }
+    else if (pid == 0)
+    {
+        printf("exec file : %s\n", args[0]);
+        for (int i = 0 ; args[i] != NULL; i++)
+            printf("%s\n", args[i]);
+        execl("/usr/bin/echo", "yaho", NULL);
+        //execv(args[0], args);
+    }
+    else
+    {
+        wait(&status);
+    }
+    return 1;
+}
+//tree 수행
+int do_tree(int argc, char* args[])
+{
+    if (argc != 4)
+    {
+        printf("Arguement Error!!\n");
+        print_help();
+        return false;
+    }
+    char make_path[MAXPATHLEN];
+    strcpy(make_path, args[2]);
+    if (!realpathS(make_path))
+    {
+        fprintf(stderr, "make path error : %s\n", args[2]);
+        return false;
+    }
+    Mlist* list = read_monitorfile();
+    if(isExistMlist(list, make_path))
+        print_tree(make_path, 0);
+    else
+    {
+        fprintf(stderr, "[%s] is not existed in list\n", make_path);
+        free_mlist(list);
+        return false;
+    }
+    free_mlist(list);
+    return true;
+}
+//help 수행
+int do_help(int argc, char* args[])
+{
+    print_help();
+    return true;
+}
+
+
+//delete 수행
+int do_delete(int argc, char* args[])
+{
+    if (argc != 4)
+    {
+        printf("Arguement Error!!\n");
+        print_help();
+        return false;
+    }
+    Mlist* list = read_monitorfile();
+    if(list == NULL)
+    {
+        printf("this list is NULL\n");
+        return false;
+    }
+    int get_pid = delNode(list, args[2]);
+    printf("return pid is %d\n", get_pid);
+    write_monitorfile(list);
+    free_mlist(list);
+    //kill(SISUSR1, get_pid);
+    return true;
+}
+
+
+
+void print_help()
+{
+   printf("usage : ./ssu_monitor\n");
+   printf(" add     <DIRPATH>\n");
+   printf(" add     <DIRPATH> -t <TIME>\n");
+   printf(" delete  <DAEMON_PID>\n");
+   printf(" tree    <DIRPATH>\n");
+   printf(" help\n");
+   printf(" exit\n");
+}
+
+
+int isExistMlist (Mlist* list, char* path) // 해당 리스트에 path가 있는지 확인
+{
+    if (list == NULL)
+        return false;
+    
+    Mnode* start = list->head;
+    while (start != NULL)
+    {
+        if (!strcmp(start->path, path))
+            return true;
+        start = start->next;
+    }
+    return false;
+}
+
+
+int canAddMlist (Mlist* list, char* path) // 해당 리스트에 path가 같거나 포함되거나, 포함하거나 하면 오류처리
+{
+    if (list == NULL || path == NULL)
+        return false;
+    
+    Mnode* start = list->head;
+    while (start != NULL)
+    {
+        if (strstr(start->path, path) != NULL || strstr(path, start->path) != NULL)
+            return false;
+        start = start->next;
+    }
+    return true;
+}
+
 
 //리스트의 있는 데이터를 moitor_list.txt 에 출력
 int write_monitorfile(Mlist* list)
@@ -424,24 +635,24 @@ Mnode* appendM (Mlist* list, char* path, char* pid)
 }
 
 
-int delNode (Mlist* list, char* path)  // return 은 해당 pid
+int delNode (Mlist* list, char* pid)  // return 은 해당 pid
 {
     if (list == NULL || list->cnt == 0)
-        return false;
+        return -1;
 
     Mnode* delNode = list->head;
     
     // 삭제 노드 찾기
     while (delNode != NULL)
     {
-        if (!strcmp(delNode->path, path))
+        if (!strcmp(delNode->pid, pid))
             break;
         delNode = delNode->next;
     }
 
     if (delNode == NULL) {
-        printf("no path [%s] in list\n", path);
-        return false;
+        printf("no path [%s] in list\n", pid);
+        return -1;
     }
 
     if (list->cnt == 1)
@@ -465,7 +676,7 @@ int delNode (Mlist* list, char* path)  // return 은 해당 pid
     }
 
     list->cnt--;
-    delNode->prev = delNode->next = false;
+    delNode->prev = delNode->next = NULL;
 
     int return_pid = atoi(delNode->pid);
     free(delNode);
@@ -587,7 +798,6 @@ char** prom_args (char* str)
         tok = tokinzer(NULL, " ");
     }
     token_arr[index++] = monitor_path;
-    token_arr[index++] = log_path;
     token_arr[index] = NULL;
     return token_arr;
 }
