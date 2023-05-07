@@ -5,7 +5,7 @@
 0. tree
 0. pthread 5 초제한
 0. diff
-
+설계과제
 new attempt
 int filter(const struct dirent *entry) {
     if (strstr(entry->d_name, filename) != NULL) {
