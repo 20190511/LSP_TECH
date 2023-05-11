@@ -126,8 +126,6 @@ int main(void)
             i++;
         prompt_str[i] = '\0';
 
-        
-
         args = prom_args(prompt_str);
         for (prompt_argc = 0 ; args[prompt_argc] != NULL ; prompt_argc++);
 
