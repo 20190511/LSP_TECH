@@ -126,7 +126,7 @@ int daemon_init(void) {
         exit(0);
     
     pid = getpid();
-    printf("process %d running as daemon\n", pid);
+    //printf("process %d running as daemon\n", pid);
     setsid();
 
     if ((fd = open(monitor_path, O_CREAT | O_WRONLY | O_APPEND, 0644)) < 0) {
