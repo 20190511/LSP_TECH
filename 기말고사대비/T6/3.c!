@@ -1,0 +1,17 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+
+#define NAME_SIZE 256
+
+int main(void)
+{
+	FILE *fp1, *fp2, *fp3;
+	char fname1[NAME_SIZE], fname2 [NAME_SIZE], output[NAME_SIZE];
+
+
+	exit(0);
+
+}
