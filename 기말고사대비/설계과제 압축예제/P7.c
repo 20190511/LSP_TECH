@@ -38,7 +38,7 @@ int main(void)
         strcpy(record[idx++].data, tkn);
         tkn = strtok(NULL, ",");
     }
-    //bubble_sort();
+    bubble_sort();
     for (int i = 0 ; i < idx ; i++)
         printf("data[%d] : %s\n", i, record[i].data);
 
@@ -79,7 +79,7 @@ void tok_name (char* str, int* q1, int* q2)
     }
     else
     *q1 = atoi(n1);
-    char* n2 = strtok(qes, ".-");
+    char* n2 = strtok(NULL, ".-");
     if (n2 == NULL) {
         *q2 = 0;
         return; 
